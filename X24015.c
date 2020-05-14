@@ -302,6 +302,8 @@ uint32_t
 RxHandler(void *pvCBData, uint32_t ui32Event, uint32_t ui32MsgValue,
           void *pvMsgData)
 {
+    ++ui32RxCount;
+
     //
     // Which event are we being sent?
     //
@@ -341,13 +343,13 @@ RxHandler(void *pvCBData, uint32_t ui32Event, uint32_t ui32MsgValue,
         //
         case USB_EVENT_RX_AVAILABLE:
         {
-            tUSBDBulkDevice *psDevice;
+            //tUSBDBulkDevice *psDevice;
 
             //
             // Get a pointer to our instance data from the callback data
             // parameter.
             //
-            psDevice = (tUSBDBulkDevice *)pvCBData;
+            //psDevice = (tUSBDBulkDevice *)pvCBData;
 
             //
             // Read the new packet and echo it back to the host.
@@ -395,6 +397,8 @@ uint32_t
 TxHandler(void *pvCBData, uint32_t ui32Event, uint32_t ui32MsgValue,
           void *pvMsgData)
 {
+    ++ui32TxCount;
+
     //
     // We are not required to do anything in response to any transmit event
     // in this example. All we do is update our transmit counter.

@@ -78,6 +78,7 @@
 #include <ti/sysbios/hal/Seconds.h>
 
 #include "X24015.h"
+#include "Utils.h"
 #include "CLITask.h"
 #include "Board.h"
 
@@ -402,8 +403,8 @@ void cmd_help(arg_t *args)
 
 void cmd_about(arg_t *args)
 {
-    CLI_printf("X24015 v%d.%02d.%03d\n\n", FIRMWARE_VER, FIRMWARE_REV, FIRMWARE_BUILD);
-    CLI_puts("Copyright (C) 2020, RTZ Microsystems, LLC.\n");
+    CLI_printf("STC-1200 v%d.%02d.%03d\n", FIRMWARE_VER, FIRMWARE_REV, FIRMWARE_BUILD);
+    CLI_puts("Copyright (C) 2020, RTZ Professional Audio, LLC.\n");
 }
 
 void cmd_cls(arg_t *args)
