@@ -1,6 +1,6 @@
 /***************************************************************************
  *
- * uSINE Signal Generator
+ * XMOD Tiva TM4C1294 Processor Card
  *
  * Copyright (C) 2020, RTZ Professional Audio, LLC
  * All Rights Reserved

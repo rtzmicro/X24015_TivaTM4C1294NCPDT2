@@ -1,12 +1,9 @@
 /***************************************************************************
  *
- * DTC-1200 & STC-1200 Digital Transport Controllers for
- * Ampex MM-1200 Tape Machines
+ * XMOD Tiva TM4C1294 Processor Card
  *
- * Copyright (C) 2016-2020, RTZ Professional Audio, LLC
+ * Copyright (C) RTZ Microsystems, LLC
  * All Rights Reserved
- *
- * RTZ is registered trademark of RTZ Professional Audio, LLC
  *
  ***************************************************************************/
 
