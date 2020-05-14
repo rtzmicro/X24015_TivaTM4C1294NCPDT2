@@ -132,6 +132,8 @@ int main(void)
     Board_initSDSPI();
     Board_initSPI();
     Board_initUART();
+
+    // debug
     //Board_initUSB(Board_USBDEVICE);
     // Board_initWatchdog();
 
