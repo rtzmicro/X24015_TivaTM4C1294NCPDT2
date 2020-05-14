@@ -11,6 +11,13 @@
 // CONSTANTS AND CONFIGURATION
 //*****************************************************************************
 
+/* This enables the DIVSCLK output pin on PQ4 and generates a clock signal
+ * from the main cpu clock divided by 'div' parameter. A value of 100 gives
+ * a clock of 1.2 Mhz.
+ */
+
+#define DIV_CLOCK_ENABLED   0
+
 /* VERSION INFO - The min build specifies the minimum build required
  * that does NOT force a default reset of all the config parameters
  * at run time. For instance, if the config loads build 5 and the minimum

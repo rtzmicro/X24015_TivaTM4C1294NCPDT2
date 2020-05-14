@@ -139,6 +139,15 @@ int main(void)
     GPIO_write(Board_LED_ACT, Board_LED_ON);
     GPIO_write(Board_LED_ALM, Board_LED_OFF);
 
+    /* This enables the DIVSCLK output pin on PQ4
+     * and generates a 1.2 Mhz clock signal on the.
+     * expansion header and pin 16 of the edge
+     * connector if a clock signal is required.
+     */
+#if (DIV_CLOCK_ENABLED > 0)
+    EnableClockDivOutput(100);
+#endif
+
     /* Create task with priority 15 */
     Error_init(&eb);
     Task_Params_init(&taskParams);
@@ -179,9 +188,11 @@ void EnableClockDivOutput(uint32_t div)
 {
     /* Enable pin PQ4 for DIVSCLK0 DIVSCLK */
     GPIOPinConfigure(GPIO_PQ4_DIVSCLK);
+
     /* Configure the output pin for the clock output */
     GPIODirModeSet(GPIO_PORTQ_BASE, GPIO_PIN_4, GPIO_DIR_MODE_HW);
     GPIOPadConfigSet(GPIO_PORTQ_BASE, GPIO_PIN_4, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD);
+
     /* Enable the clock output */
     SysCtlClockOutConfig(SYSCTL_CLKOUT_EN | SYSCTL_CLKOUT_SYSCLK, div);
 }
