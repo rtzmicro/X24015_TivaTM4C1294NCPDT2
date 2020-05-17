@@ -76,35 +76,11 @@
 #include "X24015.h"
 #include "Utils.h"
 #include "CLITask.h"
-#include "usb_bulk_structs.h"
-
-SYSCONFIG g_sysConfig;
-
-/* External Data Items */
-
-// Local Constants
-#define COMMAND_PACKET_RECEIVED     0x00000001
-#define COMMAND_STATUS_UPDATE       0x00000002
+#include "usb_device.h"
 
 // Global System Data
+SYSCONFIG g_sysConfig;
 SYSDATA g_sysData;
-
-// Global flag indicating that a USB configuration has been set.
-volatile bool g_bUSBConfigured = false;
-volatile uint32_t g_ui32TxCount = 0;
-volatile uint32_t g_ui32RxCount = 0;
-volatile uint32_t g_ui32Flags = 0;
-char *g_pcStatus;
-
-static uint32_t ui32RxCount = 0;
-static uint32_t ui32TxCount = 0;
-
-static Hwi_Struct usbHwiStruct;
-
-/* Function Prototypes */
-void USB_init(void);
-uint32_t RxHandler(void *pvCBData, uint32_t ui32Event, uint32_t ui32MsgValue, void *pvMsgData);
-uint32_t TxHandler(void *pvCBData, uint32_t ui32Event, uint32_t ui32MsgValue, void *pvMsgData);
 
 //*****************************************************************************
 // Main Entry Point
@@ -133,8 +109,6 @@ int main(void)
     Board_initSDSPI();
     Board_initSPI();
     Board_initUART();
-
-    // debug
     //Board_initUSB(Board_USBDEVICE);
     // Board_initWatchdog();
 
@@ -168,40 +142,6 @@ int main(void)
 }
 
 //*****************************************************************************
-// This is a hook into the NDK stack to allow delaying execution of the NDK
-// stack task until after we load the MAC address from the AT24MAC serial
-// EPROM part. This hook blocks on a semaphore until after we're able to call
-// Board_initEMAC() in the CommandTaskFxn() below. This mechanism allows us
-// to delay execution until we load the MAC from EPROM.
-//*****************************************************************************
-
-void NDKStackBeginHook(void)
-{
-    Semaphore_pend(g_semaNDKStartup, BIOS_WAIT_FOREVER);
-}
-
-//*****************************************************************************
-// This enables the DIVSCLK output pin on PQ4 and generates a clock signal
-// from the main cpu clock divided by 'div' parameter. A value of 100 gives
-// a clock of 1.2 Mhz.
-//*****************************************************************************
-
-#if (DIV_CLOCK_ENABLED > 0)
-void EnableClockDivOutput(uint32_t div)
-{
-    /* Enable pin PQ4 for DIVSCLK0 DIVSCLK */
-    GPIOPinConfigure(GPIO_PQ4_DIVSCLK);
-
-    /* Configure the output pin for the clock output */
-    GPIODirModeSet(GPIO_PORTQ_BASE, GPIO_PIN_4, GPIO_DIR_MODE_HW);
-    GPIOPadConfigSet(GPIO_PORTQ_BASE, GPIO_PIN_4, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD);
-
-    /* Enable the clock output */
-    SysCtlClockOutConfig(SYSCTL_CLKOUT_EN | SYSCTL_CLKOUT_SYSCLK, div);
-}
-#endif
-
-//*****************************************************************************
 //
 //
 //*****************************************************************************
@@ -213,11 +153,19 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
     //Error_Block eb;
 	//Task_Params taskParams;
 
-
     /* Read any system configuration parameters from EPROM. If config
      * hasn't been initialized, then initialize it with defaults.
      */
     ConfigParamsRead(&g_sysConfig);
+
+    /* Power up any slot cards listening */
+    GPIO_write(Board_PWRUP_BUS_OUT, PIN_HIGH);
+
+    /* Reset any slot cards listening */
+    GPIO_write(Board_RESET_BUS_OUT, PIN_HIGH);
+    GPIO_write(Board_RESET_BUS_OUT, PIN_LOW);
+    Task_sleep(100);
+    GPIO_write(Board_RESET_BUS_OUT, PIN_HIGH);
 
     /* Step 1 - Read the globally unique serial number from EPROM. We are also
      * reading the 6-byte MAC address from the AT24MAC serial EPROM.
@@ -253,176 +201,6 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
    		GPIO_toggle(Board_LED_ACT);
         Task_sleep(1000);
     }
-}
-
-//*****************************************************************************
-// Initialize the USB for device mode
-//*****************************************************************************
-
-void USB_init(void)
-{
-    Error_Block eb;
-    Hwi_Params  hwiParams;
-
-    // Tell the user what we are up to.
-    System_printf("Configuring USB\n");
-
-    // Initialize the transmit and receive buffers.
-    USBBufferInit(&g_sTxBuffer);
-    USBBufferInit(&g_sRxBuffer);
-
-    /* Setup USB0 HWI interrupt handler */
-    Error_init(&eb);
-    Hwi_Params_init(&hwiParams);
-    Hwi_construct(&(usbHwiStruct), INT_USB0, (ti_sysbios_interfaces_IHwi_FuncPtr)USB0DeviceIntHandler, &hwiParams, &eb);
-    if (Error_check(&eb)) {
-        System_abort("Couldn't construct USB error hwi");
-    }
-
-    // Initialize the USB stack for device mode.
-    //USBStackModeSet(0, eUSBModeDevice, 0);
-    // Forcing device mode so that the VBUS and ID pins are not used or monitored by the USB controller.
-    USBStackModeSet(0, eUSBModeForceDevice, 0);
-
-    // Pass our device information to the USB library and place the device
-    // on the bus.
-    USBDBulkInit(0, &g_sBulkDevice);
-}
-
-//*****************************************************************************
-//
-// Handles bulk driver notifications related to the receive channel (data from
-// the USB host).
-//
-// \param pvCBData is the client-supplied callback pointer for this channel.
-// \param ui32Event identifies the event we are being notified about.
-// \param ui32MsgValue is an event-specific value.
-// \param pvMsgData is an event-specific pointer.
-//
-// This function is called by the bulk driver to notify us of any events
-// related to operation of the receive data channel (the OUT channel carrying
-// data from the USB host).
-//
-// \return The return value is event-specific.
-//
-//*****************************************************************************
-
-uint32_t
-RxHandler(void *pvCBData, uint32_t ui32Event, uint32_t ui32MsgValue,
-          void *pvMsgData)
-{
-    ++ui32RxCount;
-
-    //
-    // Which event are we being sent?
-    //
-    switch(ui32Event)
-    {
-        //
-        // We are connected to a host and communication is now possible.
-        //
-        case USB_EVENT_CONNECTED:
-        {
-            g_bUSBConfigured = true;
-            g_pcStatus = "Host connected.";
-            g_ui32Flags |= COMMAND_STATUS_UPDATE;
-
-            //
-            // Flush our buffers.
-            //
-            USBBufferFlush(&g_sTxBuffer);
-            USBBufferFlush(&g_sRxBuffer);
-
-            break;
-        }
-
-        //
-        // The host has disconnected.
-        //
-        case USB_EVENT_DISCONNECTED:
-        {
-            g_bUSBConfigured = false;
-            g_pcStatus = "Host disconn.";
-            g_ui32Flags |= COMMAND_STATUS_UPDATE;
-            break;
-        }
-
-        //
-        // A new packet has been received.
-        //
-        case USB_EVENT_RX_AVAILABLE:
-        {
-            //tUSBDBulkDevice *psDevice;
-
-            //
-            // Get a pointer to our instance data from the callback data
-            // parameter.
-            //
-            //psDevice = (tUSBDBulkDevice *)pvCBData;
-
-            //
-            // Read the new packet and echo it back to the host.
-            //
-            //return(EchoNewDataToHost(psDevice, pvMsgData, ui32MsgValue));
-            break;
-        }
-
-        //
-        // Ignore SUSPEND and RESUME for now.
-        //
-        case USB_EVENT_SUSPEND:
-        case USB_EVENT_RESUME:
-            break;
-
-        //
-        // Ignore all other events and return 0.
-        //
-        default:
-            break;
-    }
-
-    return 0;
-}
-
-//*****************************************************************************
-//
-// Handles bulk driver notifications related to the transmit channel (data to
-// the USB host).
-//
-// \param pvCBData is the client-supplied callback pointer for this channel.
-// \param ui32Event identifies the event we are being notified about.
-// \param ui32MsgValue is an event-specific value.
-// \param pvMsgData is an event-specific pointer.
-//
-// This function is called by the bulk driver to notify us of any events
-// related to operation of the transmit data channel (the IN channel carrying
-// data to the USB host).
-//
-// \return The return value is event-specific.
-//
-//*****************************************************************************
-
-uint32_t
-TxHandler(void *pvCBData, uint32_t ui32Event, uint32_t ui32MsgValue,
-          void *pvMsgData)
-{
-    ++ui32TxCount;
-
-    //
-    // We are not required to do anything in response to any transmit event
-    // in this example. All we do is update our transmit counter.
-    //
-    if(ui32Event == USB_EVENT_TX_COMPLETE)
-    {
-        g_ui32TxCount += ui32MsgValue;
-    }
-
-    //
-    // Dump a debug message.
-    //
-    //DEBUG_PRINT("TX complete %d\n", ui32MsgValue);
-
-    return 0;
 }
 
 // End-Of-File

@@ -92,6 +92,31 @@
 #include "Utils.h"
 
 //*****************************************************************************
+// This enables the DIVSCLK output pin on PQ4 and generates a clock signal
+// from the main cpu clock divided by 'div' parameter. A value of 100 gives
+// a clock of 1.2 Mhz.
+//*****************************************************************************
+
+#if (DIV_CLOCK_ENABLED > 0)
+void EnableClockDivOutput(uint32_t div)
+{
+    /* Enable pin PQ4 for DIVSCLK0 DIVSCLK */
+    GPIOPinConfigure(GPIO_PQ4_DIVSCLK);
+
+    /* Configure the output pin for the clock output */
+    GPIODirModeSet(GPIO_PORTQ_BASE, GPIO_PIN_4, GPIO_DIR_MODE_HW);
+    GPIOPadConfigSet(GPIO_PORTQ_BASE, GPIO_PIN_4, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD);
+
+    /* Enable the clock output */
+
+    if (!div)
+        SysCtlClockOutConfig(SYSCTL_CLKOUT_DIS | SYSCTL_CLKOUT_SYSCLK, div);
+    else
+        SysCtlClockOutConfig(SYSCTL_CLKOUT_EN | SYSCTL_CLKOUT_SYSCLK, div);
+}
+#endif
+
+//*****************************************************************************
 // This function reads the unique 128-serial number and 48-bit MAC address
 // via I2C from the AT24MAC402 serial EPROM.
 //*****************************************************************************

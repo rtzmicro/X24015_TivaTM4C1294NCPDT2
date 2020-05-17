@@ -318,7 +318,7 @@ void X24015_initEMAC(void)
  *       reduce memory usage.
  */
 GPIO_PinConfig gpioPinConfigs[] = {
-    /* Input Interrupt pins */
+    /**** Input Interrupt pins ****/
     /* X24015_GPIO_PF4 */
     GPIOTiva_PF_4 | GPIO_CFG_IN_PU,
     /* X24015_GPIO_PL5 */
@@ -342,7 +342,7 @@ GPIO_PinConfig gpioPinConfigs[] = {
     /* X24015_GPIO_PN4 */
     GPIOTiva_PN_4 | GPIO_CFG_IN_PU,
 
-    /* Output pins */
+    /**** Output pins ****/
     /* X24015_GPIO_PH3 */
     GPIOTiva_PH_3 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
     /* X24015_GPIO_PH2 */
@@ -357,6 +357,11 @@ GPIO_PinConfig gpioPinConfigs[] = {
     GPIOTiva_PM_2 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
     /* X24015_GPIO_PM3 */
     GPIOTiva_PM_3 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
+    /* X24015_GPIO_PM6 (PWRUP_BUS_OUT) */
+    GPIOTiva_PM_6 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
+    /* X24015_GPIO_PM7 (RESET_BUS_OUT) */
+    GPIOTiva_PM_7 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+
     /* X24015_GPIO_PP3 */
     GPIOTiva_PP_3 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
     /* X24015_GPIO_PP2 */
@@ -437,6 +442,11 @@ void X24015_initGPIO(void)
     GPIOPinTypeGPIOOutput(GPIO_PORTM_BASE, GPIO_PIN_2);
     // Enable pin PM3 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTM_BASE, GPIO_PIN_3);
+    // Enable pin PM6 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTM_BASE, GPIO_PIN_6);
+    // Enable pin PM7 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTM_BASE, GPIO_PIN_7);
+
     // Enable pin PP3 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTP_BASE, GPIO_PIN_3);
     // Enable pin PP2 for GPIOOutput
