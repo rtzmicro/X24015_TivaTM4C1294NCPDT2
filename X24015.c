@@ -112,10 +112,6 @@ int main(void)
     //Board_initUSB(Board_USBDEVICE);
     // Board_initWatchdog();
 
-    /* Enable the LED's during startup up */
-    GPIO_write(Board_LED_ACT, Board_LED_ON);
-    GPIO_write(Board_LED_ALM, Board_LED_OFF);
-
     /* This enables the DIVSCLK output pin on PQ4
      * and generates a 1.2 Mhz clock signal on the.
      * expansion header and pin 16 of the edge
@@ -158,11 +154,14 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
      */
     ConfigParamsRead(&g_sysConfig);
 
+    /* Enable the LED's during startup up */
+    GPIO_write(Board_LED_ACT, Board_LED_ON);
+    GPIO_write(Board_LED_ALM, Board_LED_OFF);
+
     /* Power up any slot cards listening */
     GPIO_write(Board_PWRUP_BUS_OUT, PIN_HIGH);
 
     /* Reset any slot cards listening */
-    GPIO_write(Board_RESET_BUS_OUT, PIN_HIGH);
     GPIO_write(Board_RESET_BUS_OUT, PIN_LOW);
     Task_sleep(100);
     GPIO_write(Board_RESET_BUS_OUT, PIN_HIGH);
