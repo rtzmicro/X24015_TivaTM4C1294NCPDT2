@@ -153,11 +153,6 @@ typedef enum MFP_POL {LOWPOL = 0, HIGHPOL} Polarity_t;
 /***************************Function definitions********************************************/
 
 /*!
- *  @brief AT45DB Ready Value
- */
-#define MCP79410_READY  0x80
-
-/*!
  *  @brief MCP79410 Parameters
  *
  *  This is a place-holder structure now since there are no parameters
@@ -187,7 +182,6 @@ typedef struct MCP79410_Transaction {
  */
 typedef struct MCP79410_Object {
     I2C_Handle          i2cHandle;
-    uint32_t            gpioCS;
     GateMutex_Struct    gate;
 } MCP79410_Object;
 
@@ -202,14 +196,10 @@ typedef MCP79410_Object *MCP79410_Handle;
  *  @brief  Function to initialize a given MCP79410 object
  *
  *  Function to initialize a given MCP79410 object specified by the
- *  particular SPI handle and GPIO CS index values.
+ *  particular I2C handle and GPIO CS index values.
  *
  *  @param  obj           Pointer to a MCP79410_Object structure. It does not
  *                        need to be initialized.
- *
- *  @param  i2cHandle     SPI handle that the MCP79410 is attached to
- *
- *  @param  gpioCSIndex   GPIO index that is used for the Chip Select
  *
  *  @param  params        Pointer to an parameter block, if NULL it will use
  *                        default values. All the fields in this structure are
@@ -225,11 +215,9 @@ MCP79410_Handle MCP79410_construct(MCP79410_Object *obj, I2C_Handle i2cHandle, M
  *  @brief  Function to initialize a given MCP79410 device
  *
  *  Function to create a MCP79410 object specified by the
- *  particular SPI handle and GPIO CS index values.
+ *  particular I2C handle and GPIO CS index values.
  *
- *  @param  i2cHandle     SPI handle that the MCP79410 is attached to
- *
- *  @param  gpioCSIndex   GPIO index that is used for the Chip Select
+ *  @param  i2cHandle     I2C handle that the MCP79410 is attached to
  *
  *  @param  params        Pointer to an parameter block, if NULL it will use
  *                        default values. All the fields in this structure are
@@ -251,6 +239,8 @@ MCP79410_Handle MCP79410_create(I2C_Handle i2cHandle, MCP79410_Params *params);
  *  @sa     MCP79410_create()
  */
 void MCP79410_delete(MCP79410_Handle handle);
+
+Void MCP79410_Params_init(MCP79410_Params *params);
 
 void MCP79410_Initialize(MCP79410_Handle handle);
 void MCP79410_EnableOscillator(MCP79410_Handle handle);

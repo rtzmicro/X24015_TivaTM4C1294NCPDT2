@@ -104,7 +104,15 @@ Void MCP79410_destruct(MCP79410_Handle handle)
     GateMutex_destruct(&(handle->gate));
 }
 
+/*
+ *  ======== AT45DB_Params_init ========
+ */
+Void MCP79410_Params_init(MCP79410_Params *params)
+{
+    Assert_isTrue(params != NULL, NULL);
 
+    *params = MCP79410_defaultParams;
+}
 
 void MCP79410_Initialize(MCP79410_Handle handle)
 {
@@ -169,18 +177,18 @@ RTCC_Struct* MCP79410_GetTime(MCP79410_Handle handle)
 
 void MCP79410_SetTime(MCP79410_Handle handle, RTCC_Struct *time)
 {
-    uint8_t sec = MCP79410_Read(handle, SEC);             //Seconds
-    uint8_t min = 0;                                      //Minutes
-    uint8_t hour = MCP79410_Read(handle, HOUR);           //Hours
-    uint8_t weekday = MCP79410_Read(handle, DAY);         //Weekday
-    uint8_t date = 0;                                     //Date
-    uint8_t month = MCP79410_Read(handle, MNTH);          //Month
-    uint8_t year = 0;                                     //Year
+    uint8_t sec     = MCP79410_Read(handle, SEC);       //Seconds
+    uint8_t min     = 0;                                //Minutes
+    uint8_t hour    = MCP79410_Read(handle, HOUR);      //Hours
+    uint8_t weekday = MCP79410_Read(handle, DAY);       //Weekday
+    uint8_t date    = 0;                                //Date
+    uint8_t month   = MCP79410_Read(handle, MNTH);      //Month
+    uint8_t year    = 0;                                //Year
         
     // Seconds register
     if ((sec & START_32KHZ) == START_32KHZ)
     {
-        sec = MCP79410_dec2bcd(time->sec)| START_32KHZ;
+        sec = MCP79410_dec2bcd(time->sec) | START_32KHZ;
     }
     else
     {
@@ -304,7 +312,7 @@ AlarmStatus_t MCP79410_GetAlarmStatus(MCP79410_Handle handle, Alarm_t alarm)
     AlarmStatus_t status;
     uint8_t temp;
 
-    if(alarm == ZERO)
+    if (alarm == ZERO)
     {
         temp = MCP79410_Read(handle, ALM0WDAY);     //Read WKDAY register for ALRAM 0
     }
@@ -320,7 +328,7 @@ void MCP79410_ClearInterruptFlag(MCP79410_Handle handle, Alarm_t alarm)
 {
     uint8_t temp;
 
-    if(alarm == ZERO)
+    if (alarm == ZERO)
     {
         temp = MCP79410_Read(handle, ALM0WDAY);     //Read WKDAY register for ALRAM 0
         temp &= (~ALMx_IF);                         //Clear 4-th bit
