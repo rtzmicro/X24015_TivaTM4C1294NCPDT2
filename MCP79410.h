@@ -1,23 +1,25 @@
 /****************************************************************************
  * Copyright (C) 2015 Sensorian
- *                                                                          *
- * This file is part of Sensorian.                                          *
- *                                                                          *
- *   Sensorian is free software: you can redistribute it and/or modify it   *
- *   under the terms of the GNU Lesser General Public License as published  *
- *   by the Free Software Foundation, either version 3 of the License, or   *
- *   (at your option) any later version.                                    *
- *                                                                          *
- *   Sensorian is distributed in the hope that it will be useful,           *
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of         *
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
- *   GNU Lesser General Public License for more details.                    *
- *                                                                          *
- *   You should have received a copy of the GNU Lesser General Public       *
- *   License along with Sensorian.                                          *
- *   If not, see <http://www.gnu.org/licenses/>.                            *
+ *
+ * Modified for use with TI-RTOS by RTZ Microsystems, LLC
+ *
+ * This file is part of Sensorian.
+ *
+ *   Sensorian is free software: you can redistribute it and/or modify it
+ *   under the terms of the GNU Lesser General Public License as published
+ *   by the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   Sensorian is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU Lesser General Public License for more details.
+ *
+ *   You should have received a copy of the GNU Lesser General Public
+ *   License along with Sensorian.
+ *   If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
- 
+
 #ifndef __MCP79410_H__
 #define __MCP79410_H__
 
@@ -27,17 +29,15 @@
 #include <ti/drivers/I2C.h>
 #include <ti/sysbios/gates/GateMutex.h>
 
-#define  MCP79410_ADDRESS   0x6f
-
 /************************* RTCC Memory map ****************************/
 
-#define  EEPROM_WRITE   0xae       //  DEVICE ADDR for EEPROM (writes)
-#define  EEPROM_READ    0xaf       //  DEVICE ADDR for EEPROM (reads)
-#define  RTCC_WRITE     0xde       //  DEVICE ADDR for RTCC MCHP  (writes)
-#define  RTCC_READ      0xdf       //  DEVICE ADDR for RTCC MCHP  (reads)
+#define  EEPROM_WRITE   0xAE       //  DEVICE ADDR for EEPROM (writes)
+#define  EEPROM_READ    0xAF       //  DEVICE ADDR for EEPROM (reads)
+#define  RTCC_WRITE     0xDE       //  DEVICE ADDR for RTCC MCHP  (writes)
+#define  RTCC_READ      0xDF       //  DEVICE ADDR for RTCC MCHP  (reads)
 
 #define  SRAM_PTR       0x20       //  pointer of the SRAM area (RTCC)
-#define  EEPROM_SR      0xff       //  STATUS REGISTER in the  EEPROM
+#define  EEPROM_SR      0xFF       //  STATUS REGISTER in the  EEPROM
 
 #define  SEC            0x00       //  address of SECONDS      register
 #define  MIN            0x01       //  address of MINUTES      register
@@ -51,12 +51,12 @@
 #define  CAL            0x08       //  address of CALIB        register
 #define  ULID           0x09       //  address of UNLOCK ID    register
 
-#define  ALM0SEC        0x0a       //  address of ALARM0 SEC   register
-#define  ALM0MIN        0x0b       //  address of ALARM0 MIN   register
-#define  ALM0HR         0x0c       //  address of ALARM0 HOUR  register
-#define  ALM0WDAY       0x0d       //  address of ALARM0 CONTR register
-#define  ALM0DATE       0x0e       //  address of ALARM0 DATE  register
-#define  ALM0MTH        0x0f       //  address of ALARM0 MONTH register
+#define  ALM0SEC        0x0A       //  address of ALARM0 SEC   register
+#define  ALM0MIN        0x0B       //  address of ALARM0 MIN   register
+#define  ALM0HR         0x0C       //  address of ALARM0 HOUR  register
+#define  ALM0WDAY       0x0D       //  address of ALARM0 CONTR register
+#define  ALM0DATE       0x0E       //  address of ALARM0 DATE  register
+#define  ALM0MTH        0x0F       //  address of ALARM0 MONTH register
 
 #define  ALM1SEC        0x11       //  address of ALARM1 SEC   register
 #define  ALM1MIN        0x12       //  address of ALARM1 MIN   register
@@ -67,13 +67,13 @@
 
 #define  PWRDNMIN       0x18       //  address of T_SAVER MIN(VDD->BAT)
 #define  PWRDNHOUR      0x19       //  address of T_SAVER HR (VDD->BAT)
-#define  PWRDNDATE      0x1a       //  address of T_SAVER DAT(VDD->BAT)
-#define  PWRDNMTH       0x1b       //  address of T_SAVER MTH(VDD->BAT)
+#define  PWRDNDATE      0x1A       //  address of T_SAVER DAT(VDD->BAT)
+#define  PWRDNMTH       0x1B       //  address of T_SAVER MTH(VDD->BAT)
 
-#define  PWRUPMIN       0x1c       //  address of T_SAVER MIN(BAT->VDD)
-#define  PWRUPHOUR      0x1d       //  address of T_SAVER HR (BAT->VDD)
-#define  PWRUPDATE      0x1e       //  address of T_SAVER DAT(BAT->VDD)
-#define  PWRUPMTH       0x1f       //  address of T_SAVER MTH(BAT->VDD)
+#define  PWRUPMIN       0x1C       //  address of T_SAVER MIN(BAT->VDD)
+#define  PWRUPHOUR      0x1D       //  address of T_SAVER HR (BAT->VDD)
+#define  PWRUPDATE      0x1E       //  address of T_SAVER DAT(BAT->VDD)
+#define  PWRUPMTH       0x1F       //  address of T_SAVER MTH(BAT->VDD)
 
 /************************GLOBAL CONSTANTS RTCC - INITIALIZATION****************/
 
@@ -272,7 +272,7 @@ RTCC_Struct* MCP79410_GetPowerDownTime(MCP79410_Handle handle);
 uint8_t MCP79410_dec2bcd(uint8_t num);
 uint8_t MCP79410_bcd2dec(uint8_t num);
 
-void MCP79410_Write(MCP79410_Handle handle, uint8_t rtcc_reg, uint8_t time_var);
+void MCP79410_Write(MCP79410_Handle handle, uint8_t rtcc_reg, uint8_t data);
 uint8_t MCP79410_Read(MCP79410_Handle handle, uint8_t rtcc_reg);
 
 #endif

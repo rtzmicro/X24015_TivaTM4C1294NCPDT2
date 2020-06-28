@@ -1,23 +1,26 @@
 /****************************************************************************
  * Copyright (C) 2015 Sensorian
- *                                                                          *
- * This file is part of Sensorian.                                          *
- *                                                                          *
- *   Sensorian is free software: you can redistribute it and/or modify it   *
- *   under the terms of the GNU Lesser General Public License as published  *
- *   by the Free Software Foundation, either version 3 of the License, or   *
- *   (at your option) any later version.                                    *
- *                                                                          *
- *   Sensorian is distributed in the hope that it will be useful,           *
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of         *
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
- *   GNU Lesser General Public License for more details.                    *
- *                                                                          *
- *   You should have received a copy of the GNU Lesser General Public       *
- *   License along with Sensorian.                                          *
- *   If not, see <http://www.gnu.org/licenses/>.                            *
+ *
+ * Modified for use with TI-RTOS by RTZ Microsystems, LLC
+ *
+ * This file is part of Sensorian.
+ *
+ *   Sensorian is free software: you can redistribute it and/or modify it
+ *   under the terms of the GNU Lesser General Public License as published
+ *   by the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   Sensorian is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU Lesser General Public License for more details.
+ *
+ *   You should have received a copy of the GNU Lesser General Public
+ *   License along with Sensorian.
+ *   If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
 
+/* TI-RTOS Kernel Header files */
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -30,6 +33,7 @@
 #include <xdc/runtime/Error.h>
 #include <xdc/runtime/Log.h>
 #include <xdc/runtime/Memory.h>
+#include <xdc/runtime/System.h>
 
 /* TI-RTOS Driver Header files */
 #include <ti/drivers/SPI.h>
@@ -590,34 +594,59 @@ uint8_t MCP79410_bcd2dec(uint8_t num)
 }
 
 
-void MCP79410_Write(MCP79410_Handle handle, uint8_t rtcc_reg, uint8_t time_var)
+void MCP79410_Write(MCP79410_Handle handle, uint8_t rtcc_reg, uint8_t data)
 {
     IArg key;
     I2C_Transaction i2cTransaction;
-    uint8_t txBuffer[4];
-    uint8_t rxBuffer[4];
+    uint8_t txBuffer[2];
+    uint8_t rxBuffer[2];
 
     key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
 
-    txBuffer[0] = 0x81;
-    txBuffer[1] = rtcc_reg;
-    txBuffer[2] = time_var;
-    txBuffer[3] = 0x00;
+    txBuffer[0] = rtcc_reg;
+    txBuffer[1] = data;
 
     /* Initialize master SPI transaction structure */
     i2cTransaction.slaveAddress = RTCC_WRITE;
-    i2cTransaction.writeCount   = 4;
+    i2cTransaction.writeCount   = 2;
     i2cTransaction.writeBuf     = txBuffer;
-    i2cTransaction.readCount    = 4;
+    i2cTransaction.readCount    = 0;
     i2cTransaction.readBuf      = rxBuffer;
 
     /* Initiate SPI transfer */
-    I2C_transfer(handle->i2cHandle, &i2cTransaction);
+    if (!I2C_transfer(handle->i2cHandle, &i2cTransaction))
+    {
+        System_printf("Unsuccessful I2C transfer\n");
+    }
 
     GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
 }  
 
+
 uint8_t MCP79410_Read(MCP79410_Handle handle, uint8_t rtcc_reg)
 {
-    //return I2C_ReadByteRegister(rtcc_reg);
+    IArg key;
+    I2C_Transaction i2cTransaction;
+    uint8_t txBuffer[2];
+    uint8_t rxBuffer[2];
+
+    key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
+
+    txBuffer[0] = rtcc_reg;
+
+    /* Initialize master SPI transaction structure */
+    i2cTransaction.slaveAddress = RTCC_READ;
+    i2cTransaction.writeBuf     = &txBuffer;
+    i2cTransaction.writeCount   = 1;
+    i2cTransaction.readBuf      = &rxBuffer;
+    i2cTransaction.readCount    = 1;
+
+    if (!I2C_transfer(handle->i2cHandle, &i2cTransaction))
+    {
+        System_printf("Unsuccessful I2C transfer\n");
+    }
+
+    GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
+
+    return rxBuffer[0];
 }

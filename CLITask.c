@@ -2,10 +2,10 @@
  *
  * XMOD Tiva TM4C1294 Processor Card
  *
- * Copyright (C) 2020, RTZ Professional Audio, LLC
+ * Copyright (C) 2020, RTZ Microsystems, LLC
  * All Rights Reserved
  *
- * RTZ is registered trademark of RTZ Professional Audio, LLC
+ * RTZ is registered trademark of RTZ Microsystems, LLC
  *
  ***************************************************************************
  *
