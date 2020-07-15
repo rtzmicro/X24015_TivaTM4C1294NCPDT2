@@ -63,8 +63,8 @@
 #include <X24015_TM4C1294NCPDT.h>
 
 /*** External Data Items ***/
-extern SYSDATA g_sysData;
-extern SYSCONFIG g_sysConfig;
+extern SYSDATA g_sys;
+extern SYSCONFIG g_cfg;
 
 #ifndef TI_DRIVERS_UART_DMA
 #define TI_DRIVERS_UART_DMA 0
@@ -258,7 +258,7 @@ const EMAC_Config EMAC_config[] = {
 void X24015_initEMAC(void)
 {
     /* We use the MAC address from Atmel AT24 ID EPROM */
-    memcpy(macAddress, g_sysData.ui8MAC, 6);
+    memcpy(macAddress, g_sys.ui8MAC, 6);
 
 #if 0
     uint32_t ulUser0, ulUser1;

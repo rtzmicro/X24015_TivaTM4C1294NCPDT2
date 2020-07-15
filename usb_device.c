@@ -79,8 +79,8 @@
 #include "usb_bulk_structs.h"
 
 // External Global Data Items
-extern SYSCONFIG g_sysConfig;
-extern SYSDATA g_sysData;
+extern SYSCONFIG g_cfg;
+extern SYSDATA g_sys;
 
 // Local Constants
 #define COMMAND_PACKET_RECEIVED     0x00000001

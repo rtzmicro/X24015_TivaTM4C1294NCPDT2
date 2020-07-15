@@ -79,8 +79,8 @@
 #include "usb_device.h"
 
 // Global System Data
-SYSCONFIG g_sysConfig;
-SYSDATA g_sysData;
+SYSCONFIG g_cfg;
+SYSDATA g_sys;
 
 //*****************************************************************************
 // Main Entry Point
@@ -93,14 +93,14 @@ int main(void)
     Error_Block eb;
 
     /* default GUID & MAC values */
-    memset(&g_sysConfig, 0, sizeof(g_sysConfig));
-    memset(&g_sysData, 0, sizeof(g_sysData));
+    memset(&g_cfg, 0, sizeof(g_cfg));
+    memset(&g_sys, 0, sizeof(g_sys));
 
-    memset(g_sysData.ui8SerialNumber, 0xFF, 16);
-    memset(g_sysData.ui8MAC, 0xFF, 6);
-    memset(g_sysData.ipAddr, 0, 32);
+    memset(g_sys.ui8SerialNumber, 0xFF, 16);
+    memset(g_sys.ui8MAC, 0xFF, 6);
+    memset(g_sys.ipAddr, 0, 32);
 
-    ConfigInitDefaults(&g_sysConfig);
+    ConfigInitDefaults(&g_cfg);
 
     /* Call board init functions */
     Board_initGeneral();
@@ -152,7 +152,7 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
     /* Read any system configuration parameters from EPROM. If config
      * hasn't been initialized, then initialize it with defaults.
      */
-    ConfigParamsRead(&g_sysConfig);
+    ConfigParamsRead(&g_cfg);
 
     /* Enable the LED's during startup up */
     GPIO_write(Board_LED_ACT, Board_LED_ON);
@@ -169,7 +169,7 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
     /* Step 1 - Read the globally unique serial number from EPROM. We are also
      * reading the 6-byte MAC address from the AT24MAC serial EPROM.
      */
-    if (!ReadGUIDS(g_sysData.ui8SerialNumber, g_sysData.ui8MAC))
+    if (!ReadGUIDS(g_sys.ui8SerialNumber, g_sys.ui8MAC))
     {
         System_printf("Read Serial Number Failed!\n");
         System_flush();

@@ -74,8 +74,8 @@
 #endif
 
 /*** External Data Items ***/
-extern SYSDATA g_sysData;
-extern SYSCONFIG g_sysConfig;
+extern SYSDATA g_sys;
+extern SYSCONFIG g_cfg;
 
 /* Prototypes */
 Void tcpHandler(UArg arg0, UArg arg1);
@@ -136,11 +136,11 @@ void netStackBeginHook(void)
 void netIPUpdate(unsigned int IPAddr, unsigned int IfIdx, unsigned int fAdd)
 {
     if (fAdd)
-        NtIPN2Str(IPAddr, g_sysData.ipAddr);
+        NtIPN2Str(IPAddr, g_sys.ipAddr);
     else
-        NtIPN2Str(0, g_sysData.ipAddr);
+        NtIPN2Str(0, g_sys.ipAddr);
 
-    System_printf("netIPUpdate() dhcp->%s\n", g_sysData.ipAddr);
+    System_printf("netIPUpdate() dhcp->%s\n", g_sys.ipAddr);
 }
 
 //*****************************************************************************
