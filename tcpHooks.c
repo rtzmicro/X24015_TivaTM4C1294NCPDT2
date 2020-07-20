@@ -89,7 +89,7 @@ extern void NtIPN2Str(uint32_t IPAddr, char *str);
 // NDK network open hook used to initialize IPv6
 //*****************************************************************************
 
-void netOpenHook()
+void Tcp_listen_init(void)
 {
     Task_Handle taskHandle;
     Task_Params taskParams;

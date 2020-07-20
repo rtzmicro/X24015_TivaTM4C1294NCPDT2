@@ -106,6 +106,8 @@ void USB_init(void);
 uint32_t RxHandler(void *pvCBData, uint32_t ui32Event, uint32_t ui32MsgValue, void *pvMsgData);
 uint32_t TxHandler(void *pvCBData, uint32_t ui32Event, uint32_t ui32MsgValue, void *pvMsgData);
 
+extern void Tcp_listen_init(void);
+
 //*****************************************************************************
 // Main Entry Point
 //*****************************************************************************
@@ -233,6 +235,9 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
 
     /* Step 3 - Now allow the NDK task, blocked by NDKStackBeginHook(), to run */
     Semaphore_post(g_semaNDKStartup);
+
+    /* Startup TCP listener task */
+    Tcp_listen_init();
 
     /* Initialize the USB module for device mode */
     //USB_init();
