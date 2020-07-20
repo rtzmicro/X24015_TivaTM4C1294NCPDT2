@@ -2,10 +2,10 @@
  *
  * XMOD Tiva TM4C1294 Processor Card
  *
- * Copyright (C) 2020, RTZ Professional Audio, LLC
+ * Copyright (C) 2020, RTZ Microsystems, LLC
  * All Rights Reserved
  *
- * RTZ is registered trademark of RTZ Professional Audio, LLC
+ * RTZ is registered trademark of RTZ Microsystems, LLC
  *
  ***************************************************************************
  *
@@ -143,8 +143,8 @@ static void parse_cmd(char *buf);
 static arg_t *args_parse(const char *s);
 
 /*** External Data Items ***/
-extern SYSDATA g_sysData;
-extern SYSCONFIG g_sysConfig;
+extern SYSDATA g_sys;
+extern SYSCONFIG g_cfg;
 
 //*****************************************************************************
 //
@@ -417,21 +417,21 @@ void cmd_sernum(arg_t *args)
 {
     char serialnum[64];
     /*  Format the 64 bit GUID as a string */
-    GetHexStr(serialnum, g_sysData.ui8SerialNumber, 16);
+    GetHexStr(serialnum, g_sys.ui8SerialNumber, 16);
     CLI_printf("%s\n", serialnum);
 }
 
 void cmd_ipaddr(arg_t *args)
 {
-    CLI_printf("%s\n", g_sysData.ipAddr);
+    CLI_printf("%s\n", g_sys.ipAddr);
 }
 
 void cmd_macaddr(arg_t *args)
 {
     char mac[32];
     sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X",
-            g_sysData.ui8MAC[0], g_sysData.ui8MAC[1], g_sysData.ui8MAC[2],
-            g_sysData.ui8MAC[3], g_sysData.ui8MAC[4], g_sysData.ui8MAC[5]);
+            g_sys.ui8MAC[0], g_sys.ui8MAC[1], g_sys.ui8MAC[2],
+            g_sys.ui8MAC[3], g_sys.ui8MAC[4], g_sys.ui8MAC[5]);
     CLI_printf("%s\n", mac);
 }
 

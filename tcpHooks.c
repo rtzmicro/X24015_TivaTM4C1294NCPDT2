@@ -74,8 +74,8 @@
 #endif
 
 /*** External Data Items ***/
-extern SYSDATA g_sysData;
-extern SYSCONFIG g_sysConfig;
+extern SYSDATA g_sys;
+extern SYSCONFIG g_cfg;
 
 /* Prototypes */
 Void tcpHandler(UArg arg0, UArg arg1);
@@ -114,18 +114,33 @@ void Tcp_listen_init(void)
     System_flush();
 }
 
+//*****************************************************************************
+// This is a hook into the NDK stack to allow delaying execution of the NDK
+// stack task until after we load the MAC address from the AT24MAC serial
+// EPROM part. This hook blocks on a semaphore until after we're able to call
+// Board_initEMAC() in the CommandTaskFxn() below. This mechanism allows us
+// to delay execution until we load the MAC from EPROM.
+//*****************************************************************************
+
+void netStackBeginHook(void)
+{
+    Semaphore_pend(g_semaNDKStartup, BIOS_WAIT_FOREVER);
+}
+
+//*****************************************************************************
 // This handler is called when the DHCP client is assigned an
 // address from a DHCP server. We store this in our runtime data
 // structure for use later.
+//*****************************************************************************
 
 void netIPUpdate(unsigned int IPAddr, unsigned int IfIdx, unsigned int fAdd)
 {
     if (fAdd)
-        NtIPN2Str(IPAddr, g_sysData.ipAddr);
+        NtIPN2Str(IPAddr, g_sys.ipAddr);
     else
-        NtIPN2Str(0, g_sysData.ipAddr);
+        NtIPN2Str(0, g_sys.ipAddr);
 
-    System_printf("netIPUpdate() dhcp->%s\n", g_sysData.ipAddr);
+    System_printf("netIPUpdate() dhcp->%s\n", g_sys.ipAddr);
 }
 
 //*****************************************************************************
@@ -218,13 +233,16 @@ Void tcpWorker(UArg arg0, UArg arg1)
 
     System_printf("tcpWorker: start clientfd = 0x%x\n", clientfd);
 
-    while ((bytesRcvd = recv(clientfd, buffer, TCPPACKETSIZE, 0)) > 0) {
+    while ((bytesRcvd = recv(clientfd, buffer, TCPPACKETSIZE, 0)) > 0)
+    {
         bytesSent = send(clientfd, buffer, bytesRcvd, 0);
+
         if (bytesSent < 0 || bytesSent != bytesRcvd) {
             System_printf("Error: send failed.\n");
             break;
         }
     }
+
     System_printf("tcpWorker stop clientfd = 0x%x\n", clientfd);
 
     close(clientfd);
