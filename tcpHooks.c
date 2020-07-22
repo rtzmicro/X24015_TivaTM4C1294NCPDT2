@@ -86,35 +86,6 @@ void netOpenHook(void);
 extern void NtIPN2Str(uint32_t IPAddr, char *str);
 
 //*****************************************************************************
-// NDK network open hook used to initialize IPv6
-//*****************************************************************************
-
-void Tcp_listen_init(void)
-{
-    Task_Handle taskHandle;
-    Task_Params taskParams;
-    Error_Block eb;
-
-    /* Make sure Error_Block is initialized */
-    Error_init(&eb);
-
-    /*
-     *  Create the Task that farms out incoming TCP connections.
-     *  arg0 will be the port that this task listens to.
-     */
-    Task_Params_init(&taskParams);
-    taskParams.stackSize = TCPHANDLERSTACK;
-    taskParams.priority = 1;
-    taskParams.arg0 = TCPPORT;
-    taskHandle = Task_create((Task_FuncPtr)tcpHandler, &taskParams, &eb);
-    if (taskHandle == NULL) {
-        System_printf("netOpenHook: Failed to create tcpHandler Task\n");
-    }
-
-    System_flush();
-}
-
-//*****************************************************************************
 // This is a hook into the NDK stack to allow delaying execution of the NDK
 // stack task until after we load the MAC address from the AT24MAC serial
 // EPROM part. This hook blocks on a semaphore until after we're able to call
@@ -141,6 +112,36 @@ void netIPUpdate(unsigned int IPAddr, unsigned int IfIdx, unsigned int fAdd)
         NtIPN2Str(0, g_sys.ipAddr);
 
     System_printf("netIPUpdate() dhcp->%s\n", g_sys.ipAddr);
+    System_flush();
+}
+
+void netOpenHook(void)
+{
+    Task_Handle taskHandle;
+    Task_Params taskParams;
+    Error_Block eb;
+
+    /* Make sure Error_Block is initialized */
+    Error_init(&eb);
+
+    /* Create the task that listens for incoming TCP connections
+     * to handle streaming transport state info. The parameter arg0
+     * will be the port that this task listens on.
+     */
+
+    Task_Params_init(&taskParams);
+
+    taskParams.stackSize = TCPHANDLERSTACK;
+    taskParams.priority  = 1;
+    taskParams.arg0      = TCPPORT;
+
+    taskHandle = Task_create((Task_FuncPtr)tcpHandler, &taskParams, &eb);
+
+    if (taskHandle == NULL) {
+        System_printf("netOpenHook: Failed to create tcpStateHandler Task\n");
+    }
+
+    System_flush();
 }
 
 //*****************************************************************************
@@ -161,12 +162,14 @@ Void tcpHandler(UArg arg0, UArg arg1)
     Task_Params        taskParams;
     Error_Block        eb;
 
+    Task_Handle hSelf = Task_self();
+    fdOpenSession(hSelf);
+
     server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (server == -1) {
         System_printf("Error: socket not created.\n");
         goto shutdown;
     }
-
 
     memset(&localAddr, 0, sizeof(localAddr));
     localAddr.sin_family = AF_INET;
@@ -218,6 +221,8 @@ shutdown:
     if (server > 0) {
         close(server);
     }
+
+    fdClose(hSelf);
 }
 
 //*****************************************************************************

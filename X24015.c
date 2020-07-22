@@ -82,8 +82,6 @@
 SYSCONFIG g_cfg;
 SYSDATA g_sys;
 
-extern void Tcp_listen_init(void);
-
 //*****************************************************************************
 // Main Entry Point
 //*****************************************************************************
@@ -183,11 +181,8 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
     /* Step 3 - Now allow the NDK task, blocked by NDKStackBeginHook(), to run */
     Semaphore_post(g_semaNDKStartup);
 
-    /* Startup TCP listener task */
-    Tcp_listen_init();
-
     /* Initialize the USB module for device mode */
-    //USB_init();
+    USB_init();
 
     /* Initialize and startup command line interface on COM1 */
     CLI_init();
