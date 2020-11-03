@@ -193,8 +193,7 @@ Void tcpHandler(UArg arg0, UArg arg1)
         goto shutdown;
     }
 
-    while ((clientfd =
-            accept(server, (struct sockaddr *)&clientAddr, &addrlen)) != -1) {
+    while ((clientfd = accept(server, (struct sockaddr *)&clientAddr, &addrlen)) != -1) {
 
         System_printf("tcpHandler: Creating thread clientfd = %d\n", clientfd);
 
@@ -205,7 +204,9 @@ Void tcpHandler(UArg arg0, UArg arg1)
         Task_Params_init(&taskParams);
         taskParams.arg0 = (UArg)clientfd;
         taskParams.stackSize = 1280;
+
         taskHandle = Task_create((Task_FuncPtr)tcpWorker, &taskParams, &eb);
+
         if (taskHandle == NULL) {
             System_printf("Error: Failed to create new Task\n");
             close(clientfd);
