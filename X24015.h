@@ -7,6 +7,9 @@
 #ifndef __XMOD_24015_H
 #define __XMOD_24015_H
 
+#include "MCP79410.h"
+#include "AD7799.h"
+
 //*****************************************************************************
 // CONSTANTS AND CONFIGURATION
 //*****************************************************************************
@@ -27,7 +30,7 @@
  * to be reset or not.
  */
 #define FIRMWARE_VER        1           /* firmware version */
-#define FIRMWARE_REV        2           /* firmware revision */
+#define FIRMWARE_REV        3           /* firmware revision */
 #define FIRMWARE_BUILD      1           /* firmware build number */
 #define FIRMWARE_MIN_BUILD  1           /* min build req'd to force reset */
 
@@ -38,15 +41,40 @@
 #define MAGIC               0xCEB0FACE  /* magic number for EEPROM data */
 #define MAKEREV(v, r)       ((v << 16) | (r & 0xFFFF))
 
+#define ADC_MAX_CHANNELS    8
+
+#define ADC_VREF            4.096f
+#define ADC_ERROR           0xFFFFFFFF
+
+#define CELCIUS_TO_FAHRENHEIT(c)    ((float)c * 1.8f + 32.0f)
+
 //*****************************************************************************
 //GLOBAL RUN-TIME DATA
 //*****************************************************************************
 
 typedef struct _SYSDATA
 {
-    uint8_t     ui8SerialNumber[16];        /* 128-bit serial number      */
-    uint8_t     ui8MAC[6];                  /* 48-bit MAC from EPROM      */
-    char        ipAddr[32];                 /* IP address from DHCP       */
+    /* Global Runtime Data */
+    uint8_t         ui8SerialNumber[16];    /* 128-bit serial number      */
+    uint8_t         ui8MAC[6];              /* 48-bit MAC from EPROM      */
+    char            ipAddr[32];             /* IP address from DHCP       */
+    /* SPI bus peripherals */
+    SPI_Handle      spi0;                   /* SPI-0 bus spans all slots  */
+    SPI_Handle      spi2;                   /* SPI-2 bus spans all slots  */
+    SPI_Handle      spi3;                   /* SPI-3 bus spans all slots  */
+    /* I2C bus peripherals */
+    I2C_Handle      i2c0;                   /* I2C0 MAC/Serial# part      */
+    I2C_Handle      i2c1;                   /* I2C1 spare                 */
+    I2C_Handle      i2c2;                   /* I2C2 spare                 */
+    I2C_Handle      i2c3;                   /* I2C3 MCP79410 RTC part     */
+    /* Devices connected to peripherals */
+    MCP79410_Handle handleRTC;              /* MCP79410 RTC part          */
+    AD7799_Handle   AD7799Handle1;
+    AD7799_Handle   AD7799Handle2;
+    /* AD7799 ADC data */
+    uint8_t         adcID;                  /* chip ID, 16 or 24 bit type */
+    uint32_t        adcChannels;            /* num of ADC channels active */
+    uint32_t        adcData[ADC_MAX_CHANNELS];
 } SYSDATA;
 
 //*****************************************************************************
@@ -68,6 +96,5 @@ typedef struct _SYSCONFIG
 
 int main(void);
 Void MainTaskFxn(UArg arg0, UArg arg1);
-int ReadGUIDS(uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6]);
 
 #endif /* __XMOD_24015_H */

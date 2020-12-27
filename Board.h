@@ -59,14 +59,23 @@ extern "C" {
 #define Board_PWRUP_BUS_OUT         X24015_GPIO_PM6
 #define Board_RESET_BUS_OUT         X24015_GPIO_PM7
 
+#define Board_USBHOST               X24015_USBHOST
+#define Board_USBDEVICE             X24015_USBDEVICE
+
+#define Board_I2C0                  X24015_I2C0
+#define Board_I2C1                  X24015_I2C1
+#define Board_I2C2                  X24015_I2C2
+#define Board_I2C3                  X24015_I2C3
+
 #define Board_I2C_AT24MAC402        X24015_I2C0
+#define Board_I2C_MCP79410          X24015_I2C3
+
+#define Board_SPI0                  X24015_SPI0
+#define Board_SPI2                  X24015_SPI2
+#define Board_SPI3                  X24015_SPI3
 
 #define Board_PWM0                  X24015_PWM0
 #define Board_PWM1                  X24015_PWM0
-
-
-#define Board_USBHOST               X24015_USBHOST
-#define Board_USBDEVICE             X24015_USBDEVICE
 
 #define Board_COM1                  X24015_UART0
 #define Board_UART3                 X24015_UART3

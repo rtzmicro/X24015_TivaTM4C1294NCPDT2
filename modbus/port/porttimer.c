@@ -60,6 +60,7 @@
 #include "mb.h"
 #include "mbport.h"
 
+#if 0
 /* ----------------------- Defines ------------------------------------------*/
 #define MB_TIMER_DEBUG                      ( 0 )
 #define MB_TIMER_PRESCALER                  ( 128UL )
@@ -162,3 +163,4 @@ TCX_IRQHANDLER( void )
 
     portEND_SWITCHING_ISR( bTaskWoken ? pdTRUE : pdFALSE );
 }
+#endif

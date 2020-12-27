@@ -45,6 +45,7 @@
 #include <ti/sysbios/knl/Task.h>
 #include <ti/sysbios/knl/Clock.h>
 #include <ti/sysbios/knl/Semaphore.h>
+#include <ti/sysbios/gates/GateMutex.h>
 #include <ti/sysbios/family/arm/m3/Hwi.h>
 
 #include <file.h>
@@ -81,13 +82,13 @@ bMBPortIsWithinException( void )
 void
 vMBPortEnterCritical( void )
 {
-    key = GateMutex_enter(handleGate);
+    key = GateMutex_enter(mutex);
 }
 
 void
 vMBPortExitCritical( void )
 {
-    GateMutex_leave(key);
+    GateMutex_leave(mutex, key);
 }
 
 void

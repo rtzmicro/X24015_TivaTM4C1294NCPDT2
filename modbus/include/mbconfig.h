@@ -46,13 +46,13 @@ PR_BEGIN_EXTERN_C
  *  @{
  */
 /*! \brief If Modbus ASCII support is enabled. */
-#define MB_ASCII_ENABLED                        (  1 )
+#define MB_ASCII_ENABLED                        (  0 )
 
 /*! \brief If Modbus RTU support is enabled. */
-#define MB_RTU_ENABLED                          (  1 )
+#define MB_RTU_ENABLED                          (  0 )
 
 /*! \brief If Modbus TCP support is enabled. */
-#define MB_TCP_ENABLED                          (  0 )
+#define MB_TCP_ENABLED                          (  1 )
 
 /*! \brief The character timeout value for Modbus ASCII.
  *
@@ -60,7 +60,7 @@ PR_BEGIN_EXTERN_C
  * a configuration option. It should be set to the maximum expected delay
  * time of the network.
  */
-#define MB_ASCII_TIMEOUT_SEC                    (  1 )
+#define MB_ASCII_TIMEOUT_SEC                    (  0 )
 
 /*! \brief Timeout to wait in ASCII prior to enabling transmitter.
  *

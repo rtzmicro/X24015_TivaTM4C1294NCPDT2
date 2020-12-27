@@ -14,8 +14,6 @@
 // Function Prototypes
 //*****************************************************************************
 
-int ReadGUIDS(uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6]);
-
 void ConfigInitDefaults(SYSCONFIG* p);
 int ConfigParamsRead(SYSCONFIG* sp);
 int ConfigParamsWrite(SYSCONFIG* sp);

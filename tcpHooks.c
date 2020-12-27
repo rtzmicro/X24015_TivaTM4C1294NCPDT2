@@ -63,7 +63,7 @@
 #include "Utils.h"
 
 #define TCPPACKETSIZE 256
-#define NUMTCPWORKERS 3
+#define MAX_WORKERS 3
 
 #define TCPPORT 1000
 
@@ -76,6 +76,8 @@
 /*** External Data Items ***/
 extern SYSDATA g_sys;
 extern SYSCONFIG g_cfg;
+
+extern Void tcpModbusHandler(UArg arg0, UArg arg1);
 
 /* Prototypes */
 Void tcpHandler(UArg arg0, UArg arg1);
@@ -133,13 +135,14 @@ void netOpenHook(void)
 
     taskParams.stackSize = TCPHANDLERSTACK;
     taskParams.priority  = 1;
-    taskParams.arg0      = TCPPORT;
+    taskParams.arg0      = 502; //TCPPORT;
 
-    taskHandle = Task_create((Task_FuncPtr)tcpHandler, &taskParams, &eb);
+    //taskHandle = Task_create((Task_FuncPtr)tcpHandler, &taskParams, &eb);
 
-    if (taskHandle == NULL) {
+    taskHandle = Task_create((Task_FuncPtr)tcpModbusHandler, &taskParams, &eb);
+
+    if (taskHandle == NULL)
         System_printf("netOpenHook: Failed to create tcpStateHandler Task\n");
-    }
 
     System_flush();
 }
@@ -182,7 +185,7 @@ Void tcpHandler(UArg arg0, UArg arg1)
         goto shutdown;
     }
 
-    status = listen(server, NUMTCPWORKERS);
+    status = listen(server, MAX_WORKERS);
     if (status == -1) {
         System_printf("Error: listen failed.\n");
         goto shutdown;

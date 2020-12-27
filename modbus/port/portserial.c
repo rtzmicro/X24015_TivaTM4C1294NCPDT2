@@ -61,10 +61,10 @@
 #include "mbport.h"
 
 /* ----------------------- Defines ------------------------------------------*/
-#define USART0_ENABLED          ( 1 )
+#define USART0_ENABLED          ( 0 )
 #define USART0_IDX              ( 0 )
 
-#define USART1_ENABLED          ( 1 )
+#define USART1_ENABLED          ( 0 )
 #define USART1_IDX              ( USART0_IDX + USART0_ENABLED * 1 )
 
 #define USART_IDX_LAST          ( USART1_IDX )
@@ -93,6 +93,7 @@ const Pin       xUSART1Pins[] = {
 };
 #endif
 
+#if USART0_ENABLED == 1 || USART1_ENABLED == 1
 const struct xUSARTHWMappings_t
 {
     Usart          *pUsart;
@@ -287,6 +288,8 @@ vUSARTHandler( void )
 
     portEND_SWITCHING_ISR( bTaskWoken ? pdTRUE : pdFALSE );
 }
+#endif
+
 
 #if USART1_ENABLED == 1
 void
