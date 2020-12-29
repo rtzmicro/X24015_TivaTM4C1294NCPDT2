@@ -198,7 +198,7 @@ Void tcpModbusWorker(UArg arg0, UArg arg1)
      * (1') ... Modbus Protocol Data Unit
      */
 
-    while ((count = recv(clientfd, buffer, PACKET_SIZE, 0)) > 0)
+    while (1)   //(count = recv(clientfd, buffer, PACKET_SIZE, 0)) > 0)
     {
         /* Read the TID (2-bytes) */
         if ((count = recv(clientfd, (void*)&data, 2, 0)) <= 0)
@@ -223,15 +223,15 @@ Void tcpModbusWorker(UArg arg0, UArg arg1)
             break;
 
         /* Read the FUNCTION CODE (1 byte) */
-        if ((count = recv(clientfd, (void*)&code, 1, 0)) <= 0)
-            break;
+        //if ((count = recv(clientfd, (void*)&code, 1, 0)) <= 0)
+        //    break;
 
-        if (len <= 7)
+        if (len < 1)
             break;
 
         /* Calculate the data portion of the modbus packet */
 
-        bytes = len - 7;
+        bytes = len - 1;
 
         if (bytes > sizeof(buffer))
             break;
