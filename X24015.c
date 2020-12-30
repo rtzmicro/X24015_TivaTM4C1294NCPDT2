@@ -236,6 +236,9 @@ uint32_t ADCReadChannel(AD7799_Handle handle, uint32_t channel)
     uint32_t data = ADC_ERROR;
     uint8_t status = 0;
 
+    if (!handle)
+        return ADC_ERROR;
+
     /* Select ADC Channel-1 */
     AD7799_SetChannel(handle, channel);
 
@@ -544,17 +547,20 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
             GPIO_toggle(Board_LED_ALM);
         }
 
-        /* Read ADC level for CHAN-1 in SLOT-1 */
-        g_sys.adcData[0] = ADCReadChannel(g_sys.AD7799Handle1, 0);
+        if (g_sys.adcID)
+        {
+            /* Read ADC level for CHAN-1 in SLOT-1 */
+            g_sys.adcData[0] = ADCReadChannel(g_sys.AD7799Handle1, 0);
 
-        /* Read ADC level for CHAN-2 in SLOT-2 */
-        g_sys.adcData[1] = ADCReadChannel(g_sys.AD7799Handle1, 1);
+            /* Read ADC level for CHAN-2 in SLOT-2 */
+            g_sys.adcData[1] = ADCReadChannel(g_sys.AD7799Handle1, 1);
 
-        /* Read ADC level for CHAN-3 in SLOT-3 */
-        g_sys.adcData[2] = ADCReadChannel(g_sys.AD7799Handle2, 0);
+            /* Read ADC level for CHAN-3 in SLOT-3 */
+            g_sys.adcData[2] = ADCReadChannel(g_sys.AD7799Handle2, 0);
 
-        /* Read ADC level for CHAN-4 in SLOT-4 */
-        g_sys.adcData[3] = ADCReadChannel(g_sys.AD7799Handle2, 1);
+            /* Read ADC level for CHAN-4 in SLOT-4 */
+            g_sys.adcData[3] = ADCReadChannel(g_sys.AD7799Handle2, 1);
+        }
 
         //System_printf("chan1=%x chan2=%x\n", g_sys.dacLevel[0], g_sys.dacLevel[1]);
         //System_flush();

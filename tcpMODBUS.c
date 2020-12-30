@@ -67,6 +67,8 @@
 
 static Void tcpModbusWorker(UArg arg0, UArg arg1);
 
+int WriteReply(int fd, uint16_t tid, uint16_t pid, uint8_t uid, uint8_t*data, uint16_t len);
+
 static int ReadData(int fd, void *pbuf, int size, int flags);
 static int WriteData(int fd, void *pbuf, int size, int flags);
 
@@ -170,12 +172,8 @@ Void tcpModbusWorker(UArg arg0, UArg arg1)
     uint16_t    pid;
     uint16_t    len;
     uint8_t     uid;
-    uint8_t     code;
 
-    static char buffer[PACKET_SIZE];
-
-    System_printf("tcpModbusWorker: start clientfd = 0x%x\n", clientfd);
-    System_flush();
+    static uint8_t buffer[PACKET_SIZE];
 
     /* ----------------------- MBAP Header --------------------------------------*/
     /*
@@ -198,67 +196,131 @@ Void tcpModbusWorker(UArg arg0, UArg arg1)
      * (1') ... Modbus Protocol Data Unit
      */
 
-    while (1)   //(count = recv(clientfd, buffer, PACKET_SIZE, 0)) > 0)
+    System_printf("tcpModbusWorker: start clientfd = 0x%x\n", clientfd);
+    System_flush();
+
+    while(TRUE)
     {
         /* Read the TID (2-bytes) */
         if ((count = recv(clientfd, (void*)&data, 2, 0)) <= 0)
+        {
+            System_printf("Rx TID failed\n");
             break;
+        }
 
         tid = ntohs(data);
 
         /* Read the PID (2 bytes) */
         if ((count = recv(clientfd, (void*)&data, 2, 0)) <= 0)
+        {
+            System_printf("Rx PID failed\n");
             break;
+        }
 
         pid = ntohs(data);
 
         /* Read the LENGTH (2 bytes) */
         if ((count = recv(clientfd, (void*)&data, 2, 0)) <= 0)
+        {
+            System_printf("Rx LEN failed\n");
             break;
+        }
 
         len = ntohs(data);
 
         /* Read the UID (1 byte) */
         if ((count = recv(clientfd, (void*)&uid, 1, 0)) <= 0)
+        {
+            System_printf("Rx UID failed\n");
             break;
-
-        /* Read the FUNCTION CODE (1 byte) */
-        //if ((count = recv(clientfd, (void*)&code, 1, 0)) <= 0)
-        //    break;
+        }
 
         if (len < 1)
+        {
+            System_printf("Bad LEN %d\n", len);
             break;
+        }
 
         /* Calculate the data portion of the modbus packet */
 
         bytes = len - 1;
 
         if (bytes > sizeof(buffer))
+        {
+            System_printf("Bad LEN %d\n", len);
             break;
+        }
 
         /* Read the remaining data portion of the modbus packet */
 
-        if ((count = ReadData(clientfd, &buffer, bytes, 0)) <= 0)
-            break;
-
-#if 0
-        bytesSent = send(clientfd, buffer, count, 0);
-
-        if (bytesSent < 0 || bytesSent != count)
+        if ((count = ReadData(clientfd, buffer, bytes, 0)) <= 0)
         {
+            System_printf("Read Data Failed %d\n", len);
             break;
         }
-#endif
+
+        /* Write the reply response packet */
+
+        if (!WriteReply(clientfd, tid, pid, uid, buffer, (uint16_t)bytes))
+        {
+            System_printf("Write Reply Data Failed\n");
+            break;
+        }
     }
 
     (void)tid;
     (void)pid;
     (void)count;
 
-    System_printf("tcpModbusWorker stop clientfd = 0x%x\n", clientfd);
+    System_printf("tcpModbusWorker close clientfd = 0x%x\n", clientfd);
     System_flush();
 
     close(clientfd);
+}
+
+/*
+ *
+ * <------------------------ MODBUS TCP/IP ADU(1) ------------------------->
+ *              <----------- MODBUS PDU (1') ---------------->
+ *  +-----------+---------------+------------------------------------------+
+ *  | TID | PID | Length | UID  |Code | Data                               |
+ *  +-----------+---------------+------------------------------------------+
+ *  |     |     |        |      |
+ * (2)   (3)   (4)      (5)    (6)
+ *
+ * (2)  ... MB_TCP_TID          = 0 (Transaction Identifier - 2 Byte)
+ * (3)  ... MB_TCP_PID          = 2 (Protocol Identifier - 2 Byte)
+ * (4)  ... MB_TCP_LEN          = 4 (Number of bytes - 2 Byte)
+ * (5)  ... MB_TCP_UID          = 6 (Unit Identifier - 1 Byte)
+ * (6)  ... MB_TCP_FUNC         = 7 (Modbus Function Code)
+ *
+ * (1)  ... Modbus TCP/IP Application Data Unit
+ * (1') ... Modbus Protocol Data Unit
+ */
+
+int WriteReply(int fd, uint16_t tid, uint16_t pid, uint8_t uid, uint8_t*data, uint16_t len)
+{
+    /* Write the TID word */
+    if (!WriteData(fd, &tid, 2, 0))
+        return 0;
+
+    /* Write the PID word */
+    if (!WriteData(fd, &pid, 2, 0))
+        return 0;
+
+    /* Write the LEN word */
+    if (!WriteData(fd, &len, 2, 0))
+        return 0;
+
+    /* Write the UID byte */
+    if (!WriteData(fd, &uid, 1, 0))
+        return 0;
+
+    /* Write the reply packet data */
+    if (!WriteData(fd, data, (int)len, 0))
+        return 0;
+
+    return 1;
 }
 
 
