@@ -158,10 +158,8 @@ uint8_t MCP79410_IsRunning(MCP79410_Handle handle)
         return FALSE;
 }
 
-RTCC_Struct* MCP79410_GetTime(MCP79410_Handle handle)
+void MCP79410_GetTime(MCP79410_Handle handle, RTCC_Struct *current_time)
 {
-    RTCC_Struct *current_time = (RTCC_Struct *) malloc(sizeof(RTCC_Struct));
-    
     current_time->sec     = MCP79410_bcd2dec(MCP79410_Read(handle, SEC) & (~START_32KHZ));
     current_time->min     = MCP79410_bcd2dec(MCP79410_Read(handle, MIN));
     
@@ -175,8 +173,6 @@ RTCC_Struct* MCP79410_GetTime(MCP79410_Handle handle)
     current_time->date    = MCP79410_bcd2dec(MCP79410_Read(handle, DATE));
     current_time->month   = MCP79410_bcd2dec(MCP79410_Read(handle, MNTH) & ~(LPYR));
     current_time->year    = MCP79410_bcd2dec(MCP79410_Read(handle, YEAR));
-    
-    return current_time;
 }
 
 void MCP79410_SetTime(MCP79410_Handle handle, RTCC_Struct *time)
@@ -596,12 +592,12 @@ uint8_t MCP79410_bcd2dec(uint8_t num)
 
 void MCP79410_Write(MCP79410_Handle handle, uint8_t rtcc_reg, uint8_t data)
 {
-    IArg key;
+    //IArg key;
     I2C_Transaction i2cTransaction;
     uint8_t txBuffer[2];
     uint8_t rxBuffer[2];
 
-    key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
+    //key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
 
     txBuffer[0] = rtcc_reg;
     txBuffer[1] = data;
@@ -617,20 +613,21 @@ void MCP79410_Write(MCP79410_Handle handle, uint8_t rtcc_reg, uint8_t data)
     if (!I2C_transfer(handle->i2cHandle, &i2cTransaction))
     {
         System_printf("Unsuccessful I2C transfer\n");
+        System_flush();
     }
 
-    GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
+    //GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
 }  
 
 
 uint8_t MCP79410_Read(MCP79410_Handle handle, uint8_t rtcc_reg)
 {
-    IArg key;
+    //IArg key;
     I2C_Transaction i2cTransaction;
     uint8_t txBuffer[2];
     uint8_t rxBuffer[2];
 
-    key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
+    //key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
 
     txBuffer[0] = rtcc_reg;
 
@@ -644,9 +641,10 @@ uint8_t MCP79410_Read(MCP79410_Handle handle, uint8_t rtcc_reg)
     if (!I2C_transfer(handle->i2cHandle, &i2cTransaction))
     {
         System_printf("Unsuccessful I2C transfer\n");
+        System_flush();
     }
 
-    GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
+    //GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
 
     return rxBuffer[0];
 }

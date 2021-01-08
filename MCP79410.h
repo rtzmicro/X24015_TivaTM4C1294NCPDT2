@@ -247,7 +247,7 @@ void MCP79410_EnableOscillator(MCP79410_Handle handle);
 void MCP79410_DisableOscillator(MCP79410_Handle handle);
 uint8_t MCP79410_IsRunning(MCP79410_Handle handle);
 
-RTCC_Struct* MCP79410_GetTime(MCP79410_Handle handle);
+void MCP79410_GetTime(MCP79410_Handle handle, RTCC_Struct *current_time);
 void MCP79410_SetTime(MCP79410_Handle handle, RTCC_Struct *time);
 void MCP79410_SetHourFormat(MCP79410_Handle handle, Format_t format);
 void MCP79410_SetPMAM(MCP79410_Handle handle, PMAM_t meridian);

@@ -81,6 +81,7 @@
 #include "Utils.h"
 #include "CLITask.h"
 #include "Board.h"
+#include "MCP79410.h"
 
 //*****************************************************************************
 // Type Definitions
@@ -111,6 +112,7 @@ MK_CMD(about);
 MK_CMD(ipaddr);
 MK_CMD(macaddr);
 MK_CMD(sernum);
+MK_CMD(time);
 
 /* The dispatch table */
 #define CMD(func, params, help) {#func, cmd_ ## func, params, help}
@@ -122,6 +124,7 @@ cmd_t dispatch[] = {
     CMD(ipaddr, "", "Displays IP address"),
     CMD(macaddr, "", "Displays MAC address"),
     CMD(sernum, "", "Display serial number"),
+    CMD(time, "", "set current time"),
 };
 
 #define NUM_CMDS    (sizeof(dispatch)/sizeof(cmd_t))
@@ -130,7 +133,11 @@ cmd_t dispatch[] = {
 // Static and External Data Items
 //*****************************************************************************
 
-#define MAX_CHARS   80
+#define MAX_CHARS       80
+
+#define MAX_ARGS        8
+#define MAX_ARG_LEN     16
+
 
 /*** Static Data Items ***/
 static UART_Handle s_handleUart;
@@ -138,7 +145,11 @@ static const char *s_delim = " |()\n";
 static char s_cmdbuf[MAX_CHARS+3];
 static char s_cmdprev[MAX_CHARS+3];
 
+static int  s_argcnt = 0;
+static char s_args[MAX_ARGS][MAX_ARG_LEN];
+
 /*** Function Prototypes ***/
+static int parse_args(char *buf);
 static void parse_cmd(char *buf);
 static arg_t *args_parse(const char *s);
 
@@ -260,10 +271,13 @@ Void CLITaskFxn(UArg arg0, UArg arg1)
                 {
                     CLI_putc(CRET);
                     CLI_putc(LF);
+
                     /* save command for previous recall */
                     strcpy(s_cmdprev, s_cmdbuf);
+
                     /* parse new command and execute */
                     parse_cmd(s_cmdbuf);
+
                     /* reset the command buffer */
                     s_cmdbuf[0] = 0;
                     cnt = 0;
@@ -308,8 +322,33 @@ Void CLITaskFxn(UArg arg0, UArg arg1)
 //
 //*****************************************************************************
 
+int parse_args(char *buf)
+{
+    int argc = 0;
+
+    const char* tok = strtok(buf, s_delim);
+
+    if (!tok)
+        return 0;
+
+    while (tok != NULL)
+    {
+        strncpy(s_args[argc++], tok, MAX_ARG_LEN-1);
+
+        if (argc >= MAX_ARGS)
+            break;
+
+        tok = strtok(NULL,s_delim);
+    }
+
+    return argc;
+}
+
 void parse_cmd(char *buf)
 {
+    /* parse args into array */
+    s_argcnt = parse_args(buf);
+
     const char* tok = strtok(buf, s_delim);
 
     if (!tok)
@@ -324,9 +363,6 @@ void parse_cmd(char *buf)
         if (!strncmp(tok, cur.name, strlen(tok)))
         {
             arg_t *args = args_parse(cur.args);
-
-            //if (args == NULL && strlen(cur.args))
-            //    return;//Error in argument parsing
 
             cur.func(args);
 
@@ -433,6 +469,45 @@ void cmd_macaddr(arg_t *args)
             g_sys.ui8MAC[0], g_sys.ui8MAC[1], g_sys.ui8MAC[2],
             g_sys.ui8MAC[3], g_sys.ui8MAC[4], g_sys.ui8MAC[5]);
     CLI_printf("%s\n", mac);
+}
+
+void cmd_time(arg_t *args)
+{
+    char str[32];
+    RTCC_Struct ts;
+
+    if (s_argcnt == 1)
+    {
+        if (!MCP79410_IsRunning(g_sys.handleRTC))
+        {
+            strcpy(str, "clock not running");
+        }
+        else
+        {
+            MCP79410_GetTime(g_sys.handleRTC, &ts);
+            sprintf(str, "%d:%d:%d", ts.month, ts.weekday, ts.year);
+        }
+    }
+    else
+    {
+        if (strcmp(s_args[1], "set") == 0)
+        {
+            MCP79410_Initialize(g_sys.handleRTC);
+
+            //sprintf(str, "%02X:%02X:%02X:%02X:%02X:%02X",
+            //        g_sys.ui8MAC[0], g_sys.ui8MAC[1], g_sys.ui8MAC[2],
+            //        g_sys.ui8MAC[3], g_sys.ui8MAC[4], g_sys.ui8MAC[5]);
+
+
+        }
+        else
+        {
+            strcpy(str, "error");
+        }
+    }
+
+
+    CLI_printf("%s\n", str);
 }
 
 // End-Of-File
