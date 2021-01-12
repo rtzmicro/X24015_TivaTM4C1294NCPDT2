@@ -631,10 +631,25 @@ uint8_t MCP79410_Read(MCP79410_Handle handle, uint8_t rtcc_reg)
 
     txBuffer[0] = rtcc_reg;
 
+    /* Write a dummy byte with address */
+    i2cTransaction.slaveAddress = RTCC_WRITE;
+    i2cTransaction.writeBuf     = &txBuffer;
+    i2cTransaction.writeCount   = 1;
+    i2cTransaction.readBuf      = &rxBuffer;
+    i2cTransaction.readCount    = 0;
+
+    if (!I2C_transfer(handle->i2cHandle, &i2cTransaction))
+    {
+        System_printf("Unsuccessful I2C transfer\n");
+        System_flush();
+    }
+
+    txBuffer[0] = rtcc_reg;
+
     /* Initialize master SPI transaction structure */
     i2cTransaction.slaveAddress = RTCC_READ;
     i2cTransaction.writeBuf     = &txBuffer;
-    i2cTransaction.writeCount   = 1;
+    i2cTransaction.writeCount   = 0;
     i2cTransaction.readBuf      = &rxBuffer;
     i2cTransaction.readCount    = 1;
 
