@@ -58,9 +58,11 @@
 
 /* TI-RTOS Driver files */
 #include <ti/drivers/GPIO.h>
+#include <ti/drivers/SPI.h>
 #include <ti/drivers/SDSPI.h>
 #include <ti/drivers/I2C.h>
 #include <ti/drivers/UART.h>
+#include <ti/mw/fatfs/ff.h>
 
 #include <file.h>
 #include <stdio.h>
@@ -113,6 +115,7 @@ MK_CMD(ipaddr);
 MK_CMD(macaddr);
 MK_CMD(sernum);
 MK_CMD(time);
+MK_CMD(dir);
 
 /* The dispatch table */
 #define CMD(func, params, help) {#func, cmd_ ## func, params, help}
@@ -125,6 +128,7 @@ cmd_t dispatch[] = {
     CMD(macaddr, "", "Displays MAC address"),
     CMD(sernum, "", "Display serial number"),
     CMD(time, "", "set current time"),
+    CMD(dir, "", "list directory"),
 };
 
 #define NUM_CMDS    (sizeof(dispatch)/sizeof(cmd_t))
@@ -508,6 +512,62 @@ void cmd_time(arg_t *args)
 
 
     CLI_printf("%s\n", str);
+}
+
+void cmd_dir(arg_t *args)
+{
+    int files = 0;
+    FIL file;
+    FRESULT res;
+    static DIR dir;
+    static FILINFO fno; /* File information */
+
+
+    if (g_sys.i2c2 == NULL)
+    {
+        CLI_printf("no SD drive open\n");
+        return;
+    }
+    else
+    {
+        if ((res = f_open(&file, "bootld.bin", FA_READ)) != FR_OK)
+        {
+            CLI_printf("error %d reading SD drive\n", res);
+        }
+        else
+        {
+
+            f_close(&file);
+        }
+
+
+#if 0
+        if ((res = f_opendir(&dir, ".")) != FR_OK)
+        {
+            CLI_printf("dir empty\n");
+            return;
+        }
+        else
+        {
+            res = f_findfirst(&dir, &fno, "", "*.*");
+
+            /* Loop while an item is found */
+
+            while (res == FR_OK && fno.fname[0])
+            {
+                /* Print the object name */
+                CLI_printf("%s\n", fno.fname);
+
+                /* Search for next item */
+                res = f_findnext(&dir, &fno);
+            }
+
+            f_closedir(&dir);
+        }
+#endif
+    }
+
+    //CLI_printf("%s\n");
 }
 
 // End-Of-File

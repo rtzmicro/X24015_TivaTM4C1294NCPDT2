@@ -55,6 +55,8 @@
 #include <ti/drivers/I2C.h>
 #include <ti/drivers/UART.h>
 
+#include <ti/mw/fatfs/ff.h>
+
 /* USB Driver files */
 #include <usblib/usblib.h>
 #include <usblib/usb-ids.h>
@@ -82,6 +84,7 @@
 /* Global System Data */
 SYSCONFIG g_cfg;
 SYSDATA g_sys;
+FATFS FatFs;   /* Work area (filesystem object) for logical drive */
 
 /* Static Function Prototypes */
 static bool Init_Peripherals(void);
@@ -276,17 +279,18 @@ uint32_t ADCReadChannel(AD7799_Handle handle, uint32_t channel)
 bool Init_Peripherals(void)
 {
     SPI_Params  spiParams;
-    I2C_Params  params;
+    SDSPI_Params sdParams;
+    I2C_Params  i2cParams;
 
     /* I2C-0 Bus */
 
-    I2C_Params_init(&params);
+    I2C_Params_init(&i2cParams);
 
-    params.transferCallbackFxn = NULL;
-    params.transferMode        = I2C_MODE_BLOCKING;
-    params.bitRate             = I2C_100kHz;
+    i2cParams.transferCallbackFxn = NULL;
+    i2cParams.transferMode        = I2C_MODE_BLOCKING;
+    i2cParams.bitRate             = I2C_100kHz;
 
-    if ((g_sys.i2c0 = I2C_open(Board_I2C0, &params)) == NULL)
+    if ((g_sys.i2c0 = I2C_open(Board_I2C0, &i2cParams)) == NULL)
     {
         System_printf("Error: Unable to openI2C3 port\n");
         System_flush();
@@ -295,13 +299,13 @@ bool Init_Peripherals(void)
 
     /* I2C-1 Bus */
 
-    I2C_Params_init(&params);
+    I2C_Params_init(&i2cParams);
 
-    params.transferCallbackFxn = NULL;
-    params.transferMode        = I2C_MODE_BLOCKING;
-    params.bitRate             = I2C_100kHz;
+    i2cParams.transferCallbackFxn = NULL;
+    i2cParams.transferMode        = I2C_MODE_BLOCKING;
+    i2cParams.bitRate             = I2C_100kHz;
 
-    if ((g_sys.i2c1 = I2C_open(Board_I2C1, &params)) == NULL)
+    if ((g_sys.i2c1 = I2C_open(Board_I2C1, &i2cParams)) == NULL)
     {
         System_printf("Error: Unable to openI2C1 port\n");
         System_flush();
@@ -310,13 +314,13 @@ bool Init_Peripherals(void)
 
     /* I2C-2 Bus */
 
-    I2C_Params_init(&params);
+    I2C_Params_init(&i2cParams);
 
-    params.transferCallbackFxn = NULL;
-    params.transferMode        = I2C_MODE_BLOCKING;
-    params.bitRate             = I2C_100kHz;
+    i2cParams.transferCallbackFxn = NULL;
+    i2cParams.transferMode        = I2C_MODE_BLOCKING;
+    i2cParams.bitRate             = I2C_100kHz;
 
-    if ((g_sys.i2c2 = I2C_open(Board_I2C2, &params)) == NULL)
+    if ((g_sys.i2c2 = I2C_open(Board_I2C2, &i2cParams)) == NULL)
     {
         System_printf("Error: Unable to openI2C2 port\n");
         System_flush();
@@ -325,13 +329,13 @@ bool Init_Peripherals(void)
 
     /* I2C-3 Bus */
 
-    I2C_Params_init(&params);
+    I2C_Params_init(&i2cParams);
 
-    params.transferCallbackFxn = NULL;
-    params.transferMode        = I2C_MODE_BLOCKING;
-    params.bitRate             = I2C_100kHz;
+    i2cParams.transferCallbackFxn = NULL;
+    i2cParams.transferMode        = I2C_MODE_BLOCKING;
+    i2cParams.bitRate             = I2C_100kHz;
 
-    if ((g_sys.i2c3 = I2C_open(Board_I2C3, &params)) == NULL)
+    if ((g_sys.i2c3 = I2C_open(Board_I2C3, &i2cParams)) == NULL)
     {
         System_printf("Error: Unable to openI2C3 port\n");
         System_flush();
@@ -388,6 +392,19 @@ bool Init_Peripherals(void)
     if ((g_sys.spi3 = SPI_open(Board_SPI3, &spiParams)) == NULL)
     {
         System_printf("Error: Unable to open SPI3 port\n");
+        System_flush();
+        return false;
+    }
+
+    /* SD SPI bus */
+
+    SDSPI_Params_init(&sdParams);
+
+    sdParams.bitRate = 400000;
+
+    if ((g_sys.spiSD = SDSPI_open(X24015_SDSPI0, SD_DRIVE_NUM, &sdParams)) == NULL)
+    {
+        System_printf("Error: Unable to open SD SPI port\n");
         System_flush();
         return false;
     }
@@ -495,10 +512,11 @@ bool Init_Devices(void)
     System_flush();
 
     /* Step 2 - Don't initialize EMAC layer until after reading MAC address above! */
-    Board_initEMAC();
+    Board_initEMAC(g_sys.ui8MAC);
 
     /* Step 3 - Now allow the NDK task, blocked by NDKStackBeginHook(), to run */
     Semaphore_post(g_semaNDKStartup);
+
 
     /* Initialize the USB module for device mode */
     USB_init();

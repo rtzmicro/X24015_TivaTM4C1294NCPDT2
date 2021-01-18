@@ -14,6 +14,8 @@
 // CONSTANTS AND CONFIGURATION
 //*****************************************************************************
 
+#define SD_DRIVE_NUM        0           /* SD disk drive number */
+
 /* This enables the DIVSCLK output pin on PQ4 and generates a clock signal
  * from the main cpu clock divided by 'div' parameter. A value of 100 gives
  * a clock of 1.2 Mhz.
@@ -62,6 +64,7 @@ typedef struct _SYSDATA
     SPI_Handle      spi0;                   /* SPI-0 bus spans all slots  */
     SPI_Handle      spi2;                   /* SPI-2 bus spans all slots  */
     SPI_Handle      spi3;                   /* SPI-3 bus spans all slots  */
+    SDSPI_Handle    spiSD;                  /* SPI-3 bus spans all slots  */
     /* I2C bus peripherals */
     I2C_Handle      i2c0;                   /* I2C0 MAC/Serial# part      */
     I2C_Handle      i2c1;                   /* I2C1 spare                 */

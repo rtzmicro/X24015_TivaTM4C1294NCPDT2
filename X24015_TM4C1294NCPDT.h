@@ -229,7 +229,7 @@ extern void X24015_initGeneral(void);
  *  The EMAC address is programmed as part of this call.
  *
  */
-extern void X24015_initEMAC(void);
+extern void X24015_initEMAC(unsigned char* mac);
 
 /*!
  *  @brief  Initialize board specific GPIO settings

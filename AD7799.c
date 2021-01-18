@@ -66,6 +66,7 @@
 
 /* TI-RTOS Driver Header files */
 #include <ti/drivers/SPI.h>
+#include <ti/drivers/SDSPI.h>
 #include <ti/drivers/GPIO.h>
 
 
