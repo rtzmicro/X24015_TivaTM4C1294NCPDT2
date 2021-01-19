@@ -157,6 +157,8 @@ static int parse_args(char *buf);
 static void parse_cmd(char *buf);
 static arg_t *args_parse(const char *s);
 
+static char *FSErrorString(int errno);
+
 /*** External Data Items ***/
 extern SYSDATA g_sys;
 extern SYSCONFIG g_cfg;
@@ -532,7 +534,7 @@ void cmd_dir(arg_t *args)
     {
         if ((res = f_open(&file, "bootld.bin", FA_READ)) != FR_OK)
         {
-            CLI_printf("error %d reading SD drive\n", res);
+            CLI_printf("ERROR: %s\n", FSErrorString(res));
         }
         else
         {
@@ -568,6 +570,37 @@ void cmd_dir(arg_t *args)
     }
 
     //CLI_printf("%s\n");
+}
+
+char *FSErrorString(int errno)
+{
+    static char* FSErrorString[] = {
+        "Success",
+        "A hard error occurred",
+        "Assertion failed",
+        "The physical drive cannot work",
+        "Could not find the file",
+        "Could not find the path",
+        "The path name format is invalid",
+        "Access denied due to prohibited access or directory full",
+        "Access denied due to prohibited access",
+        "The file/directory object is invalid",
+        "The physical drive is write protected",
+        "The logical drive number is invalid",
+        "The volume has no work area",
+        "There is no valid FAT volume",
+        "The f_mkfs() aborted due to any parameter error",
+        "Could not get a grant to access the volume within defined period",
+        "The operation is rejected according to the file sharing policy",
+        "LFN working buffer could not be allocated",
+        "Too many open files",
+        "Given parameter is invalid"
+    };
+
+    if (errno > sizeof(FSErrorString)/sizeof(char*))
+        return "";
+
+    return FSErrorString[errno];
 }
 
 // End-Of-File
