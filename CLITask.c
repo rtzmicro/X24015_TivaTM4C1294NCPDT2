@@ -534,7 +534,7 @@ void cmd_dir(arg_t *args)
     {
         if ((res = f_open(&file, "bootld.bin", FA_READ)) != FR_OK)
         {
-            CLI_printf("ERROR: %s\n", FSErrorString(res));
+            CLI_printf("ERROR(%d): %s\n", res, FSErrorString(res));
         }
         else
         {
@@ -572,13 +572,17 @@ void cmd_dir(arg_t *args)
     //CLI_printf("%s\n");
 }
 
+//*****************************************************************************
+// Return File System Error String
+//*****************************************************************************
+
 char *FSErrorString(int errno)
 {
     static char* FSErrorString[] = {
         "Success",
         "A hard error occurred",
         "Assertion failed",
-        "The physical drive cannot work",
+        "Physical drive error",
         "Could not find the file",
         "Could not find the path",
         "The path name format is invalid",
@@ -598,7 +602,7 @@ char *FSErrorString(int errno)
     };
 
     if (errno > sizeof(FSErrorString)/sizeof(char*))
-        return "";
+        return "???";
 
     return FSErrorString[errno];
 }

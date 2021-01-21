@@ -429,7 +429,7 @@ void X24015_initGPIO(void)
     // Enable pin PH2 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTH_BASE, GPIO_PIN_2);
     // Enable pin PK7 for GPIOOutput
-    GPIOPinTypeGPIOOutput(GPIO_PORTK_BASE, GPIO_PIN_7);
+    //GPIOPinTypeGPIOOutput(GPIO_PORTK_BASE, GPIO_PIN_7);
     // Enable pin PM0 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTM_BASE, GPIO_PIN_0);
     // Enable pin PM1 for GPIOOutput
@@ -649,18 +649,17 @@ SDSPITiva_Object sdspiTivaObjects[X24015_SDSPICOUNT];
 
 const SDSPITiva_HWAttrs sdspiTivaHWattrs[X24015_SDSPICOUNT] = {
     {
-   		/* SD Card Socket (J1) */
-        .baseAddr = SSI1_BASE,
-
-        .portSCK  = GPIO_PORTB_BASE,
-        .pinSCK   = GPIO_PIN_5,
-        .portMISO = GPIO_PORTE_BASE,
-        .pinMISO  = GPIO_PIN_5,
-        .portMOSI = GPIO_PORTE_BASE,
-        .pinMOSI  = GPIO_PIN_4,
-        .portCS   = GPIO_PORTK_BASE,
-        .pinCS    = GPIO_PIN_7,
-    },
+         /* SD Card Socket (J1) */
+        .baseAddr = SSI1_BASE,          /* SPI base address */
+        .portSCK  = GPIO_PORTB_BASE,    /* SPI SCK PORT */
+        .pinSCK   = GPIO_PIN_5,         /* SCK PIN (PB5) */
+        .portMISO = GPIO_PORTE_BASE,    /* SPI MISO PORT */
+        .pinMISO  = GPIO_PIN_5,         /* MISO PIN (PE5) */
+        .portMOSI = GPIO_PORTE_BASE,    /* SPI MOSI PORT */
+        .pinMOSI  = GPIO_PIN_4,         /* MOSI PIN (PE4) */
+        .portCS   = GPIO_PORTK_BASE,    /* GPIO CS PORT */
+        .pinCS    = GPIO_PIN_7          /* CS PIN (PK7) */
+    }
 };
 
 const SDSPI_Config SDSPI_config[] = {
@@ -695,8 +694,11 @@ void X24015_initSDSPI(void)
     GPIOPinTypeSSI(GPIO_PORTB_BASE, GPIO_PIN_5);
 
     // Enable pin PB4 for SSI1 SSI1FSS
-    GPIOPinConfigure(GPIO_PB4_SSI1FSS);
-    GPIOPinTypeSSI(GPIO_PORTB_BASE, GPIO_PIN_4);
+    //GPIOPinConfigure(GPIO_PB4_SSI1FSS);
+    //GPIOPinTypeSSI(GPIO_PORTB_BASE, GPIO_PIN_4);
+
+    // Enable pin PK7 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTK_BASE, GPIO_PIN_7);
 
     /* Configure pad settings */
 
@@ -712,9 +714,9 @@ void X24015_initSDSPI(void)
     GPIOPadConfigSet(GPIO_PORTE_BASE,
                      GPIO_PIN_5,
                      GPIO_STRENGTH_4MA, GPIO_PIN_TYPE_STD_WPU);
-    /* CS (PB4) */
-    GPIOPadConfigSet(GPIO_PORTB_BASE,
-                     GPIO_PIN_4,
+    /* CS (PK7) */
+    GPIOPadConfigSet(GPIO_PORTK_BASE,
+                     GPIO_PIN_7,
                      GPIO_STRENGTH_4MA, GPIO_PIN_TYPE_STD);
 
     SDSPI_init();

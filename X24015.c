@@ -119,8 +119,8 @@ int main(void)
     Board_initGeneral();
     Board_initGPIO();
     Board_initI2C();
-    Board_initSDSPI();
     Board_initSPI();
+    Board_initSDSPI();
     Board_initUART();
     //Board_initUSB(Board_USBDEVICE);
     // Board_initWatchdog();
