@@ -70,7 +70,7 @@ extern "C" {
 #define Board_I2C_AT24MAC402        X24015_I2C0
 #define Board_I2C_MCP79410          X24015_I2C3
 
-#define Board_SPI0                  X24015_SPI0
+#define Board_spiSpare                  X24015_SPI0
 #define Board_SPI2                  X24015_SPI2
 #define Board_SPI3                  X24015_SPI3
 

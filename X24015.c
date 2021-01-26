@@ -353,7 +353,7 @@ bool Init_Peripherals(void)
     spiParams.bitRate         = 100000;            /* 1 Mhz */
     spiParams.dataSize        = 8;
 
-    if ((g_sys.spi0 = SPI_open(Board_SPI0, &spiParams)) == NULL)
+    if ((g_sys.spi0 = SPI_open(Board_spiSpare, &spiParams)) == NULL)
     {
         System_printf("Error: Unable to open SPI2 port\n");
         System_flush();
