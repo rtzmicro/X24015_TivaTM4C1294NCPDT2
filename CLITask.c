@@ -518,11 +518,11 @@ void cmd_time(arg_t *args)
 
 void cmd_dir(arg_t *args)
 {
-    int files = 0;
+    //int files = 0;
     FIL file;
     FRESULT res;
-    static DIR dir;
-    static FILINFO fno; /* File information */
+    //static DIR dir;
+    //static FILINFO fno; /* File information */
 
 
     if (g_sys.i2c2 == NULL)
