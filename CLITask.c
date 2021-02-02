@@ -89,20 +89,13 @@
 // Type Definitions
 //*****************************************************************************
 
-typedef union {
-    char  *s;
-    char   c;
-    float  f;
-} arg_t;
-
 typedef struct {
     const char* name;
-    void (*func)(arg_t*);
-    const char* args;
+    void (*func)(int, char**);
     const char* doc;
 } cmd_t;
 
-#define MK_CMD(x) void cmd_ ## x (arg_t*)
+#define MK_CMD(x) void cmd_ ## x (int, char**)
 
 //*****************************************************************************
 // CLI Function Handle Declarations
@@ -118,17 +111,17 @@ MK_CMD(time);
 MK_CMD(dir);
 
 /* The dispatch table */
-#define CMD(func, params, help) {#func, cmd_ ## func, params, help}
+#define CMD(func, help) {#func, cmd_ ## func, help}
 
 cmd_t dispatch[] = {
-    CMD(cls, "", "Clear the screen"),
-    CMD(help, "", "Display this help"),
-    CMD(about, "", "About the system"),
-    CMD(ipaddr, "", "Displays IP address"),
-    CMD(macaddr, "", "Displays MAC address"),
-    CMD(sernum, "", "Display serial number"),
-    CMD(time, "", "set current time"),
-    CMD(dir, "", "list directory"),
+    CMD(cls, "Clear the screen"),
+    CMD(help, "Display this help"),
+    CMD(about, "About the system"),
+    CMD(ipaddr, "Displays IP address"),
+    CMD(macaddr, "Displays MAC address"),
+    CMD(sernum, "Display serial number"),
+    CMD(time, "set current time"),
+    CMD(dir, "list directory"),
 };
 
 #define NUM_CMDS    (sizeof(dispatch)/sizeof(cmd_t))
@@ -145,17 +138,17 @@ cmd_t dispatch[] = {
 
 /*** Static Data Items ***/
 static UART_Handle s_handleUart;
-static const char *s_delim = " |()\n";
+static const char *s_delim = " ://\n";
 static char s_cmdbuf[MAX_CHARS+3];
 static char s_cmdprev[MAX_CHARS+3];
 
-static int  s_argcnt = 0;
-static char s_args[MAX_ARGS][MAX_ARG_LEN];
+static int   s_argc = 0;
+static char* s_argv[MAX_ARGS];
+static char  s_args[MAX_ARGS][MAX_ARG_LEN];
 
 /*** Function Prototypes ***/
 static int parse_args(char *buf);
 static void parse_cmd(char *buf);
-static arg_t *args_parse(const char *s);
 
 static char *FSErrorString(int errno);
 
@@ -252,6 +245,41 @@ void CLI_prompt(void)
 }
 
 //*****************************************************************************
+// Return File System Error String
+//*****************************************************************************
+
+char *FSErrorString(int errno)
+{
+    static char* FSErrorString[] = {
+        "Success",
+        "A hard error occurred",
+        "Assertion failed",
+        "Physical drive error",
+        "Could not find the file",
+        "Could not find the path",
+        "The path name format is invalid",
+        "Access denied due to prohibited access or directory full",
+        "Access denied due to prohibited access",
+        "The file/directory object is invalid",
+        "The physical drive is write protected",
+        "The logical drive number is invalid",
+        "The volume has no work area",
+        "There is no valid FAT volume",
+        "The f_mkfs() aborted due to any parameter error",
+        "Could not get a grant to access the volume within defined period",
+        "The operation is rejected according to the file sharing policy",
+        "LFN working buffer could not be allocated",
+        "Too many open files",
+        "Given parameter is invalid"
+    };
+
+    if (errno > sizeof(FSErrorString)/sizeof(char*))
+        return "???";
+
+    return FSErrorString[errno];
+}
+
+//*****************************************************************************
 //
 //*****************************************************************************
 
@@ -332,19 +360,19 @@ int parse_args(char *buf)
 {
     int argc = 0;
 
-    const char* tok = strtok(buf, s_delim);
+    const char* tok = strtok(NULL, s_delim);
 
     if (!tok)
         return 0;
 
     while (tok != NULL)
     {
-        strncpy(s_args[argc++], tok, MAX_ARG_LEN-1);
+        s_argv[argc] = strncpy(s_args[argc], tok, MAX_ARG_LEN-1);
 
-        if (argc >= MAX_ARGS)
+        if (++argc >= MAX_ARGS)
             break;
 
-        tok = strtok(NULL,s_delim);
+        tok = strtok(NULL, s_delim);
     }
 
     return argc;
@@ -352,13 +380,13 @@ int parse_args(char *buf)
 
 void parse_cmd(char *buf)
 {
-    /* parse args into array */
-    s_argcnt = parse_args(buf);
-
-    const char* tok = strtok(buf, s_delim);
+    char* tok = strtok(buf, s_delim);
 
     if (!tok)
         return;
+
+    /* parse args into array */
+    s_argc = parse_args(tok);
 
     int i = NUM_CMDS;
 
@@ -368,12 +396,7 @@ void parse_cmd(char *buf)
 
         if (!strncmp(tok, cur.name, strlen(tok)))
         {
-            arg_t *args = args_parse(cur.args);
-
-            cur.func(args);
-
-            if (args)
-                free(args);
+            cur.func(s_argc, s_argv);
             return;
         }
     }
@@ -381,81 +404,37 @@ void parse_cmd(char *buf)
     CLI_puts("Command Not Found\n");
 }
 
-#define ESCAPE { free(args); return NULL; }
-
-arg_t *args_parse(const char *s)
-{
-    int argc = strlen(s);
-
-    arg_t *args = malloc(sizeof(arg_t)*argc);
-
-    int i;
-
-    for(i=0; i < argc; ++i)
-    {
-        char *tok;
-
-        switch(s[i])
-        {
-            case 's':
-                args[i].s = strtok(NULL,s_delim);
-                if (!args[i].s)
-                    ESCAPE;
-                break;
-
-            case 'c':
-                tok = strtok(NULL,s_delim);
-                if (!tok)
-                    ESCAPE;
-                args[i].c = tok[0];
-                if (!islower(args[i].c))
-                    ESCAPE;
-                break;
-
-            case 'f':
-                tok = strtok(NULL,s_delim);
-                if (sscanf(tok,"%f", &args[i].f)!=1)
-                    ESCAPE;
-                break;
-        }
-    }
-
-    return args;
-}
-#undef ESCAPE
-
 //*****************************************************************************
 // CLI Command Handlers
 //*****************************************************************************
 
-void cmd_help(arg_t *args)
+void cmd_help(int argc, char *argv[])
 {
-    char tmp[100];
     int i = NUM_CMDS;
 
     CLI_puts("\nAvailable Commands:\n\n");
 
     while(i--)
     {
-        cmd_t cmd=dispatch[i];
-        System_snprintf(tmp, 100, "%s(%s)", cmd.name, cmd.args);
-        CLI_printf("%10s\t %s\n", tmp, cmd.doc);
+        cmd_t cmd = dispatch[i];
+
+        CLI_printf("%10s\t %s\n", cmd.name, cmd.doc);
     }
 }
 
-void cmd_about(arg_t *args)
+void cmd_about(int argc, char *argv[])
 {
     CLI_printf("X24015 v%d.%02d.%03d\n", FIRMWARE_VER, FIRMWARE_REV, FIRMWARE_BUILD);
     CLI_puts("Copyright (C) 2020, RTZ Microsystems, LLC.\n");
 }
 
-void cmd_cls(arg_t *args)
+void cmd_cls(int argc, char *argv[])
 {
     CLI_puts(VT100_CLS);
     CLI_puts(VT100_HOME);
 }
 
-void cmd_sernum(arg_t *args)
+void cmd_sernum(int argc, char *argv[])
 {
     char serialnum[64];
     /*  Format the 64 bit GUID as a string */
@@ -463,60 +442,81 @@ void cmd_sernum(arg_t *args)
     CLI_printf("%s\n", serialnum);
 }
 
-void cmd_ipaddr(arg_t *args)
+void cmd_ipaddr(int argc, char *argv[])
 {
     CLI_printf("%s\n", g_sys.ipAddr);
 }
 
-void cmd_macaddr(arg_t *args)
+void cmd_macaddr(int argc, char *argv[])
 {
     char mac[32];
+
     sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X",
             g_sys.ui8MAC[0], g_sys.ui8MAC[1], g_sys.ui8MAC[2],
             g_sys.ui8MAC[3], g_sys.ui8MAC[4], g_sys.ui8MAC[5]);
+
     CLI_printf("%s\n", mac);
 }
 
-void cmd_time(arg_t *args)
+void cmd_time(int argc, char *argv[])
 {
     char str[32];
     RTCC_Struct ts;
 
-    if (s_argcnt == 1)
+    str[0] = '\0';
+
+    if (argc == 0)
     {
         if (!MCP79410_IsRunning(g_sys.handleRTC))
         {
-            strcpy(str, "clock not running");
+            CLI_printf("clock not running\n");
         }
         else
         {
             MCP79410_GetTime(g_sys.handleRTC, &ts);
-            sprintf(str, "%d:%d:%d", ts.month, ts.weekday, ts.year);
+
+            sprintf(str, "%d:%d:%d %d/%d/%d",
+                    ts.hour, ts.min, ts.sec,
+                    ts.month, ts.weekday,
+                    (ts.year - 1900) + 2000);
+
+            CLI_printf("%s\n", str);
+        }
+    }
+    else if (argc == 7)
+    {
+        int year = atoi(argv[6]);
+
+        if (strcmp(argv[0], "set") == 0)
+        {
+            ts.hour    = (uint8_t)atoi(argv[1]);
+            ts.min     = (uint8_t)atoi(argv[2]);
+            ts.sec     = (uint8_t)atoi(argv[3]);
+
+            ts.month   = (uint8_t)atoi(argv[4]);;
+            ts.date    = (uint8_t)atoi(argv[5]);
+            ts.weekday = (uint8_t)((ts.date % 7) + 1);
+            ts.year    = (uint8_t)((year + 1900) - 2000);
+
+            MCP79410_SetHourFormat(g_sys.handleRTC, H24);                // Set hour format to military time standard
+            MCP79410_EnableVbat(g_sys.handleRTC);                        // Enable battery backup
+            MCP79410_SetTime(g_sys.handleRTC, &ts);
+            MCP79410_EnableOscillator(g_sys.handleRTC);                  // Start clock by enabling oscillator
+
+            CLI_printf("time and date set!\n", str);
+        }
+        else
+        {
+            CLI_printf("invalid arguments\n");
         }
     }
     else
     {
-        if (strcmp(s_args[1], "set") == 0)
-        {
-            MCP79410_Initialize(g_sys.handleRTC);
-
-            //sprintf(str, "%02X:%02X:%02X:%02X:%02X:%02X",
-            //        g_sys.ui8MAC[0], g_sys.ui8MAC[1], g_sys.ui8MAC[2],
-            //        g_sys.ui8MAC[3], g_sys.ui8MAC[4], g_sys.ui8MAC[5]);
-
-
-        }
-        else
-        {
-            strcpy(str, "error");
-        }
+        CLI_printf("invalid time parameters\n");
     }
-
-
-    CLI_printf("%s\n", str);
 }
 
-void cmd_dir(arg_t *args)
+void cmd_dir(int argc, char *argv[])
 {
     //int files = 0;
     FIL file;
@@ -570,41 +570,6 @@ void cmd_dir(arg_t *args)
     }
 
     //CLI_printf("%s\n");
-}
-
-//*****************************************************************************
-// Return File System Error String
-//*****************************************************************************
-
-char *FSErrorString(int errno)
-{
-    static char* FSErrorString[] = {
-        "Success",
-        "A hard error occurred",
-        "Assertion failed",
-        "Physical drive error",
-        "Could not find the file",
-        "Could not find the path",
-        "The path name format is invalid",
-        "Access denied due to prohibited access or directory full",
-        "Access denied due to prohibited access",
-        "The file/directory object is invalid",
-        "The physical drive is write protected",
-        "The logical drive number is invalid",
-        "The volume has no work area",
-        "There is no valid FAT volume",
-        "The f_mkfs() aborted due to any parameter error",
-        "Could not get a grant to access the volume within defined period",
-        "The operation is rejected according to the file sharing policy",
-        "LFN working buffer could not be allocated",
-        "Too many open files",
-        "Given parameter is invalid"
-    };
-
-    if (errno > sizeof(FSErrorString)/sizeof(char*))
-        return "???";
-
-    return FSErrorString[errno];
 }
 
 // End-Of-File

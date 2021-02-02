@@ -31,82 +31,82 @@
 
 /************************* RTCC Memory map ****************************/
 
-#define  EEPROM_WRITE   0xAE       //  DEVICE ADDR for EEPROM (writes)
-#define  EEPROM_READ    0xAF       //  DEVICE ADDR for EEPROM (reads)
-#define  RTCC_WRITE     0xDE       //  DEVICE ADDR for RTCC MCHP  (writes)
-#define  RTCC_READ      0xDF       //  DEVICE ADDR for RTCC MCHP  (reads)
+#define  EEPROM_WRITE   (0xAE >> 1) //  DEVICE ADDR for EEPROM (writes)
+#define  EEPROM_READ    (0xAF >> 1) //  DEVICE ADDR for EEPROM (reads)
+#define  RTCC_WRITE     (0xDE >> 1) //  DEVICE ADDR for RTCC MCHP  (writes)
+#define  RTCC_READ      (0xDF >> 1) //  DEVICE ADDR for RTCC MCHP  (reads)
 
-#define  SRAM_PTR       0x20       //  pointer of the SRAM area (RTCC)
-#define  EEPROM_SR      0xFF       //  STATUS REGISTER in the  EEPROM
+#define  SRAM_PTR       0x20        //  pointer of the SRAM area (RTCC)
+#define  EEPROM_SR      0xFF        //  STATUS REGISTER in the  EEPROM
 
-#define  SEC            0x00       //  address of SECONDS      register
-#define  MIN            0x01       //  address of MINUTES      register
-#define  HOUR           0x02       //  address of HOURS        register
-#define  DAY            0x03       //  address of DAY OF WK    register
-#define  STAT           0x03       //  address of STATUS       register
-#define  DATE           0x04       //  address of DATE         register
-#define  MNTH           0x05       //  address of MONTH        register
-#define  YEAR           0x06       //  address of YEAR         register
-#define  CTRL           0x07       //  address of CONTROL      register
-#define  CAL            0x08       //  address of CALIB        register
-#define  ULID           0x09       //  address of UNLOCK ID    register
+#define  SEC            0x00        //  address of SECONDS      register
+#define  MIN            0x01        //  address of MINUTES      register
+#define  HOUR           0x02        //  address of HOURS        register
+#define  DAY            0x03        //  address of DAY OF WK    register
+#define  STAT           0x03        //  address of STATUS       register
+#define  DATE           0x04        //  address of DATE         register
+#define  MNTH           0x05        //  address of MONTH        register
+#define  YEAR           0x06        //  address of YEAR         register
+#define  CTRL           0x07        //  address of CONTROL      register
+#define  CAL            0x08        //  address of CALIB        register
+#define  ULID           0x09        //  address of UNLOCK ID    register
 
-#define  ALM0SEC        0x0A       //  address of ALARM0 SEC   register
-#define  ALM0MIN        0x0B       //  address of ALARM0 MIN   register
-#define  ALM0HR         0x0C       //  address of ALARM0 HOUR  register
-#define  ALM0WDAY       0x0D       //  address of ALARM0 CONTR register
-#define  ALM0DATE       0x0E       //  address of ALARM0 DATE  register
-#define  ALM0MTH        0x0F       //  address of ALARM0 MONTH register
+#define  ALM0SEC        0x0A        //  address of ALARM0 SEC   register
+#define  ALM0MIN        0x0B        //  address of ALARM0 MIN   register
+#define  ALM0HR         0x0C        //  address of ALARM0 HOUR  register
+#define  ALM0WDAY       0x0D        //  address of ALARM0 CONTR register
+#define  ALM0DATE       0x0E        //  address of ALARM0 DATE  register
+#define  ALM0MTH        0x0F        //  address of ALARM0 MONTH register
 
-#define  ALM1SEC        0x11       //  address of ALARM1 SEC   register
-#define  ALM1MIN        0x12       //  address of ALARM1 MIN   register
-#define  ALM1HR         0x13       //  address of ALARM1 HOUR  register
-#define  ALM1WDAY       0x14       //  address of ALARM1 CONTR register
-#define  ALM1DATE       0x15       //  address of ALARM1 DATE  register
-#define  ALM1MTH        0x16       //  address of ALARM1 MONTH register
+#define  ALM1SEC        0x11        //  address of ALARM1 SEC   register
+#define  ALM1MIN        0x12        //  address of ALARM1 MIN   register
+#define  ALM1HR         0x13        //  address of ALARM1 HOUR  register
+#define  ALM1WDAY       0x14        //  address of ALARM1 CONTR register
+#define  ALM1DATE       0x15        //  address of ALARM1 DATE  register
+#define  ALM1MTH        0x16        //  address of ALARM1 MONTH register
 
-#define  PWRDNMIN       0x18       //  address of T_SAVER MIN(VDD->BAT)
-#define  PWRDNHOUR      0x19       //  address of T_SAVER HR (VDD->BAT)
-#define  PWRDNDATE      0x1A       //  address of T_SAVER DAT(VDD->BAT)
-#define  PWRDNMTH       0x1B       //  address of T_SAVER MTH(VDD->BAT)
+#define  PWRDNMIN       0x18        //  address of T_SAVER MIN(VDD->BAT)
+#define  PWRDNHOUR      0x19        //  address of T_SAVER HR (VDD->BAT)
+#define  PWRDNDATE      0x1A        //  address of T_SAVER DAT(VDD->BAT)
+#define  PWRDNMTH       0x1B        //  address of T_SAVER MTH(VDD->BAT)
 
-#define  PWRUPMIN       0x1C       //  address of T_SAVER MIN(BAT->VDD)
-#define  PWRUPHOUR      0x1D       //  address of T_SAVER HR (BAT->VDD)
-#define  PWRUPDATE      0x1E       //  address of T_SAVER DAT(BAT->VDD)
-#define  PWRUPMTH       0x1F       //  address of T_SAVER MTH(BAT->VDD)
+#define  PWRUPMIN       0x1C        //  address of T_SAVER MIN(BAT->VDD)
+#define  PWRUPHOUR      0x1D        //  address of T_SAVER HR (BAT->VDD)
+#define  PWRUPDATE      0x1E        //  address of T_SAVER DAT(BAT->VDD)
+#define  PWRUPMTH       0x1F        //  address of T_SAVER MTH(BAT->VDD)
 
 /************************GLOBAL CONSTANTS RTCC - INITIALIZATION****************/
 
-#define  PM             0x20       //  post-meridian bit (HOUR)
-#define  HOUR_FORMAT    0x40       //  Hour format
-#define  OUT_PIN        0x80       //  = b7 (CTRL)
-#define  SQWEN          0x40       //  SQWE = b6 (CTRL)
-#define  ALM_NO         0x00       //  no alarm activated        (CTRL)
-#define  ALM_0          0x10       //  ALARM0 is       activated (CTRL)
-#define  ALM_1          0x20       //  ALARM1 is       activated (CTRL)
-#define  ALM_01         0x30       //  both alarms are activated (CTRL)
-#define  MFP_01H        0x00       //  MFP = SQVAW(01 HERZ)      (CTRL)
-#define  MFP_04K        0x01       //  MFP = SQVAW(04 KHZ)       (CTRL)
-#define  MFP_08K        0x02       //  MFP = SQVAW(08 KHZ)       (CTRL)
-#define  MFP_32K        0x03       //  MFP = SQVAW(32 KHZ)       (CTRL)
-#define  MFP_64H        0x04       //  MFP = SQVAW(64 HERZ)      (CTRL)
-#define  ALMx_POL       0x80       //  polarity of MFP on alarm  (ALMxCTL)
-#define  ALMxC_SEC      0x00       //  ALARM compare on SEC      (ALMxCTL)
-#define  ALMxC_MIN      0x10       //  ALARM compare on MIN      (ALMxCTL)
-#define  ALMxC_HR       0x20       //  ALARM compare on HOUR     (ALMxCTL)
-#define  ALMxC_DAY      0x30       //  ALARM compare on DAY      (ALMxCTL)
-#define  ALMxC_DAT      0x40       //  ALARM compare on DATE     (ALMxCTL)
-#define  ALMxC_ALL      0x70       //  ALARM compare on all param(ALMxCTL)
-#define  ALMx_IF        0x08       //  MASK of the ALARM_IF      (ALMxCTL)
+#define  PM             0x20        //  post-meridian bit (HOUR)
+#define  HOUR_FORMAT    0x40        //  Hour format
+#define  OUT_PIN        0x80        //  = b7 (CTRL)
+#define  SQWEN          0x40        //  SQWE = b6 (CTRL)
+#define  ALM_NO         0x00        //  no alarm activated        (CTRL)
+#define  ALM_0          0x10        //  ALARM0 is       activated (CTRL)
+#define  ALM_1          0x20        //  ALARM1 is       activated (CTRL)
+#define  ALM_01         0x30        //  both alarms are activated (CTRL)
+#define  MFP_01H        0x00        //  MFP = SQVAW(01 HERZ)      (CTRL)
+#define  MFP_04K        0x01        //  MFP = SQVAW(04 KHZ)       (CTRL)
+#define  MFP_08K        0x02        //  MFP = SQVAW(08 KHZ)       (CTRL)
+#define  MFP_32K        0x03        //  MFP = SQVAW(32 KHZ)       (CTRL)
+#define  MFP_64H        0x04        //  MFP = SQVAW(64 HERZ)      (CTRL)
+#define  ALMx_POL       0x80        //  polarity of MFP on alarm  (ALMxCTL)
+#define  ALMxC_SEC      0x00        //  ALARM compare on SEC      (ALMxCTL)
+#define  ALMxC_MIN      0x10        //  ALARM compare on MIN      (ALMxCTL)
+#define  ALMxC_HR       0x20        //  ALARM compare on HOUR     (ALMxCTL)
+#define  ALMxC_DAY      0x30        //  ALARM compare on DAY      (ALMxCTL)
+#define  ALMxC_DAT      0x40        //  ALARM compare on DATE     (ALMxCTL)
+#define  ALMxC_ALL      0x70        //  ALARM compare on all param(ALMxCTL)
+#define  ALMx_IF        0x08        //  MASK of the ALARM_IF      (ALMxCTL)
 
-#define  OSCRUN         0x20       //  state of the oscillator(running or not)
+#define  OSCRUN         0x20        //  state of the oscillator(running or not)
 #define  PWRFAIL        0x10
-#define  VBATEN         0x08       //  enable battery for back-up
-#define  VBAT_DIS       0x37       //  disable battery back-up
+#define  VBATEN         0x08        //  enable battery for back-up
+#define  VBAT_DIS       0x37        //  disable battery back-up
 
-#define  START_32KHZ    0x80       //  start crystal: ST = b7 (SEC)
-#define  LP             0x20       //  mask for the leap year bit(MONTH REG)
-#define  HOUR_12        0x40       //  12 hours format   (HOUR)
+#define  START_32KHZ    0x80        //  start crystal: ST = b7 (SEC)
+#define  LP             0x20        //  mask for the leap year bit(MONTH REG)
+#define  HOUR_12        0x40        //  12 hours format   (HOUR)
 
 #define  LPYR           0x20
 
@@ -242,7 +242,7 @@ void MCP79410_delete(MCP79410_Handle handle);
 
 Void MCP79410_Params_init(MCP79410_Params *params);
 
-void MCP79410_Initialize(MCP79410_Handle handle);
+void MCP79410_Initialize(MCP79410_Handle handle, RTCC_Struct *time, Format_t format);
 void MCP79410_EnableOscillator(MCP79410_Handle handle);
 void MCP79410_DisableOscillator(MCP79410_Handle handle);
 uint8_t MCP79410_IsRunning(MCP79410_Handle handle);
@@ -266,13 +266,7 @@ uint8_t MCP79410_CheckPowerFailure(MCP79410_Handle handle);
 uint8_t MCP79410_IsVbatEnabled(MCP79410_Handle handle);
 void MCP79410_EnableVbat(MCP79410_Handle handle);
 void MCP79410_DisableVbat(MCP79410_Handle handle);
-RTCC_Struct* MCP79410_GetPowerUpTime(MCP79410_Handle handle);
-RTCC_Struct* MCP79410_GetPowerDownTime(MCP79410_Handle handle);
-
-uint8_t MCP79410_dec2bcd(uint8_t num);
-uint8_t MCP79410_bcd2dec(uint8_t num);
-
-void MCP79410_Write(MCP79410_Handle handle, uint8_t rtcc_reg, uint8_t data);
-uint8_t MCP79410_Read(MCP79410_Handle handle, uint8_t rtcc_reg);
+void MCP79410_GetPowerUpTime(MCP79410_Handle handle, RTCC_Struct *powerup_time);
+void MCP79410_GetPowerDownTime(MCP79410_Handle handle, RTCC_Struct *powerdown_time);
 
 #endif
