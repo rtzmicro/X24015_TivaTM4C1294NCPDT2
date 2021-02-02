@@ -475,10 +475,10 @@ void cmd_time(int argc, char *argv[])
         {
             MCP79410_GetTime(g_sys.handleRTC, &ts);
 
-            sprintf(str, "%d:%d:%d %d/%d/%d",
+            sprintf(str, "%d:%02d:%02d %d/%d/%d",
                     ts.hour, ts.min, ts.sec,
                     ts.month, ts.weekday,
-                    (ts.year - 1900) + 2000);
+                    ts.year + 2000);
 
             CLI_printf("%s\n", str);
         }
@@ -492,11 +492,10 @@ void cmd_time(int argc, char *argv[])
             ts.hour    = (uint8_t)atoi(argv[1]);
             ts.min     = (uint8_t)atoi(argv[2]);
             ts.sec     = (uint8_t)atoi(argv[3]);
-
             ts.month   = (uint8_t)atoi(argv[4]);;
             ts.date    = (uint8_t)atoi(argv[5]);
-            ts.weekday = (uint8_t)((ts.date % 7) + 1);
-            ts.year    = (uint8_t)((year + 1900) - 2000);
+            ts.weekday = (uint8_t)2;    //((ts.date % 7) + 1);
+            ts.year    = (uint8_t)(year - 2000);
 
             MCP79410_SetHourFormat(g_sys.handleRTC, H24);                // Set hour format to military time standard
             MCP79410_EnableVbat(g_sys.handleRTC);                        // Enable battery backup
