@@ -485,8 +485,6 @@ void cmd_time(int argc, char *argv[])
     }
     else if (argc == 7)
     {
-        int year = atoi(argv[6]);
-
         if (strcmp(argv[0], "set") == 0)
         {
             ts.hour    = (uint8_t)atoi(argv[1]);
@@ -494,8 +492,8 @@ void cmd_time(int argc, char *argv[])
             ts.sec     = (uint8_t)atoi(argv[3]);
             ts.month   = (uint8_t)atoi(argv[4]);;
             ts.date    = (uint8_t)atoi(argv[5]);
-            ts.weekday = (uint8_t)2;    //((ts.date % 7) + 1);
-            ts.year    = (uint8_t)(year - 2000);
+            ts.weekday = (uint8_t)0;
+            ts.year    = (uint8_t)(atoi(argv[6]) - 2000);
 
             MCP79410_SetHourFormat(g_sys.handleRTC, H24);                // Set hour format to military time standard
             MCP79410_EnableVbat(g_sys.handleRTC);                        // Enable battery backup
