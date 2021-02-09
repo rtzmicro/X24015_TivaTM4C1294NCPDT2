@@ -108,6 +108,7 @@ MK_CMD(ipaddr);
 MK_CMD(macaddr);
 MK_CMD(sernum);
 MK_CMD(time);
+MK_CMD(timeset);
 MK_CMD(dir);
 
 /* The dispatch table */
@@ -120,7 +121,8 @@ cmd_t dispatch[] = {
     CMD(ipaddr, "Displays IP address"),
     CMD(macaddr, "Displays MAC address"),
     CMD(sernum, "Display serial number"),
-    CMD(time, "set current time"),
+    CMD(time, "display current time"),
+    CMD(timeset, "set current time"),
     CMD(dir, "list directory"),
 };
 
@@ -198,7 +200,6 @@ Bool CLI_startup(void)
     Task_Params taskParams;
 
     Error_init(&eb);
-
     Task_Params_init(&taskParams);
 
     taskParams.stackSize = 2048;
@@ -394,7 +395,7 @@ void parse_cmd(char *buf)
     {
         cmd_t cur = dispatch[i];
 
-        if (!strncmp(tok, cur.name, strlen(tok)))
+        if (!strncmp(tok, cur.name, strlen(cur.name)))
         {
             cur.func(s_argc, s_argv);
             return;
@@ -465,51 +466,50 @@ void cmd_time(int argc, char *argv[])
 
     str[0] = '\0';
 
-    if (argc == 0)
+    if (!MCP79410_IsRunning(g_sys.handleRTC))
     {
-        if (!MCP79410_IsRunning(g_sys.handleRTC))
-        {
-            CLI_printf("clock not running\n");
-        }
-        else
-        {
-            MCP79410_GetTime(g_sys.handleRTC, &ts);
-
-            sprintf(str, "%d:%02d:%02d %d/%d/%d",
-                    ts.hour, ts.min, ts.sec,
-                    ts.month, ts.weekday,
-                    ts.year + 2000);
-
-            CLI_printf("%s\n", str);
-        }
-    }
-    else if (argc == 7)
-    {
-        if (strcmp(argv[0], "set") == 0)
-        {
-            ts.hour    = (uint8_t)atoi(argv[1]);
-            ts.min     = (uint8_t)atoi(argv[2]);
-            ts.sec     = (uint8_t)atoi(argv[3]);
-            ts.month   = (uint8_t)atoi(argv[4]);;
-            ts.date    = (uint8_t)atoi(argv[5]);
-            ts.weekday = (uint8_t)0;
-            ts.year    = (uint8_t)(atoi(argv[6]) - 2000);
-
-            MCP79410_SetHourFormat(g_sys.handleRTC, H24);                // Set hour format to military time standard
-            MCP79410_EnableVbat(g_sys.handleRTC);                        // Enable battery backup
-            MCP79410_SetTime(g_sys.handleRTC, &ts);
-            MCP79410_EnableOscillator(g_sys.handleRTC);                  // Start clock by enabling oscillator
-
-            CLI_printf("time and date set!\n", str);
-        }
-        else
-        {
-            CLI_printf("invalid arguments\n");
-        }
+        CLI_printf("clock not running!\n");
     }
     else
     {
-        CLI_printf("invalid time parameters\n");
+        MCP79410_GetTime(g_sys.handleRTC, &ts);
+
+        sprintf(str, "%d:%02d:%02d %d/%d/%d",
+                ts.hour, ts.min, ts.sec,
+                ts.month, ts.date,
+                ts.year + 2000);
+
+        CLI_printf("%s\n", str);
+    }
+}
+
+void cmd_timeset(int argc, char *argv[])
+{
+    char str[32];
+    RTCC_Struct ts;
+
+    str[0] = '\0';
+
+    if (argc == 6)
+    {
+        ts.hour    = (uint8_t)atoi(argv[0]);
+        ts.min     = (uint8_t)atoi(argv[1]);
+        ts.sec     = (uint8_t)atoi(argv[2]);
+        ts.month   = (uint8_t)atoi(argv[3]);;
+        ts.date    = (uint8_t)atoi(argv[4]);
+        ts.weekday = (uint8_t)((ts.date % 7) + 1);
+        ts.year    = (uint8_t)(atoi(argv[5]) - 2000);
+
+        MCP79410_SetHourFormat(g_sys.handleRTC, H24);                // Set hour format to military time standard
+        MCP79410_EnableVbat(g_sys.handleRTC);                        // Enable battery backup
+        MCP79410_SetTime(g_sys.handleRTC, &ts);
+        MCP79410_EnableOscillator(g_sys.handleRTC);                  // Start clock by enabling oscillator
+
+        CLI_printf("time and date set!\n", str);
+    }
+    else
+    {
+        CLI_printf("enter time/date as: hh:mm:ss mm/dd/yyyy\n");
     }
 }
 
