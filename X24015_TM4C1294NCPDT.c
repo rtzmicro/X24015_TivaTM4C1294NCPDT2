@@ -344,7 +344,7 @@ GPIO_PinConfig gpioPinConfigs[] = {
     /* X24015_GPIO_PH2 */
     GPIOTiva_PH_2 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
     /* X24015_GPIO_PK7 */
-    GPIOTiva_PK_7 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
+    //GPIOTiva_PK_7 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
     /* X24015_GPIO_PM0 */
     GPIOTiva_PM_0 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
     /* X24015_GPIO_PM1 */
@@ -428,8 +428,6 @@ void X24015_initGPIO(void)
     GPIOPinTypeGPIOOutput(GPIO_PORTH_BASE, GPIO_PIN_3);
     // Enable pin PH2 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTH_BASE, GPIO_PIN_2);
-    // Enable pin PK7 for GPIOOutput
-    //GPIOPinTypeGPIOOutput(GPIO_PORTK_BASE, GPIO_PIN_7);
     // Enable pin PM0 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTM_BASE, GPIO_PIN_0);
     // Enable pin PM1 for GPIOOutput
@@ -697,7 +695,7 @@ void X24015_initSDSPI(void)
     //GPIOPinConfigure(GPIO_PB4_SSI1FSS);
     //GPIOPinTypeSSI(GPIO_PORTB_BASE, GPIO_PIN_4);
 
-    // Enable pin PK7 for GPIOOutput
+    // Enable pin PK7 for GPIOOutput (SSI1FSS_SD)
     GPIOPinTypeGPIOOutput(GPIO_PORTK_BASE, GPIO_PIN_7);
 
     /* Configure pad settings */
@@ -718,6 +716,10 @@ void X24015_initSDSPI(void)
     GPIOPadConfigSet(GPIO_PORTK_BASE,
                      GPIO_PIN_7,
                      GPIO_STRENGTH_4MA, GPIO_PIN_TYPE_STD);
+
+    // [RES] DEBUG
+    GPIOPinWrite(GPIO_PORTK_BASE, GPIO_PIN_7, 0);
+    GPIOPinWrite(GPIO_PORTK_BASE, GPIO_PIN_7, 1);
 
     SDSPI_init();
 }

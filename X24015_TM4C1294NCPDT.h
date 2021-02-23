@@ -100,7 +100,6 @@ typedef enum X24015_GPIOName {
     /* Outputs */
     X24015_GPIO_PH3,
     X24015_GPIO_PH2,
-    X24015_GPIO_PK7,
     X24015_GPIO_PM0,
     X24015_GPIO_PM1,
     X24015_GPIO_PM2,

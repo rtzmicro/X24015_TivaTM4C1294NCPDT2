@@ -419,10 +419,22 @@ bool Init_Peripherals(void)
 
 bool Init_Devices(void)
 {
-    /* This enables the DIVSCLK output pin on PQ4
-     * and generates a 1.2 Mhz clock signal on the.
-     * expansion header and pin 16 of the edge
-     * connector if a clock signal is required.
+    /* Enable the LED's during startup up */
+    GPIO_write(Board_LED_ACT, Board_LED_ON);
+    GPIO_write(Board_LED_ALM, Board_LED_OFF);
+
+    /* Power up any slot cards listening */
+    GPIO_write(Board_PWRUP_BUS_OUT, PIN_HIGH);
+    Task_sleep(100);
+
+    /* Reset any slot cards listening */
+    GPIO_write(Board_RESET_BUS_OUT, PIN_LOW);
+    Task_sleep(100);
+    GPIO_write(Board_RESET_BUS_OUT, PIN_HIGH);
+    Task_sleep(100);
+
+    /* This enables the DIVSCLK output pin on PQ4 and generates a 1.2 Mhz clock
+     * signal on the bus if any board needs a clock signal for some reason.
      */
 #if (DIV_CLOCK_ENABLED > 0)
     EnableClockDivOutput(100);
@@ -486,19 +498,6 @@ bool Init_Devices(void)
         /* Set for unipolar data reading */
         AD7799_SetUnipolar(g_sys.AD7799Handle2, AD7799_UNIPOLAR_ENA);
     }
-
-    /* Enable the LED's during startup up */
-    GPIO_write(Board_LED_ACT, Board_LED_ON);
-    GPIO_write(Board_LED_ALM, Board_LED_OFF);
-
-    /* Power up any slot cards listening */
-    GPIO_write(Board_PWRUP_BUS_OUT, PIN_HIGH);
-
-    /* Reset any slot cards listening */
-    GPIO_write(Board_RESET_BUS_OUT, PIN_LOW);
-    Task_sleep(100);
-    GPIO_write(Board_RESET_BUS_OUT, PIN_HIGH);
-    Task_sleep(100);
 
     /* Prepare to initialize EMAC layer.
      * Step 1 - Read the globally unique serial number from EPROM. We are also

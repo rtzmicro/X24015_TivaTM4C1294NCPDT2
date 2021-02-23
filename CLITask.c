@@ -108,7 +108,7 @@ MK_CMD(ipaddr);
 MK_CMD(macaddr);
 MK_CMD(sernum);
 MK_CMD(time);
-MK_CMD(timeset);
+MK_CMD(date);
 MK_CMD(dir);
 
 /* The dispatch table */
@@ -122,7 +122,7 @@ cmd_t dispatch[] = {
     CMD(macaddr, "Displays MAC address"),
     CMD(sernum, "Display serial number"),
     CMD(time, "display current time"),
-    CMD(timeset, "set current time"),
+    CMD(date, "display current date"),
     CMD(dir, "list directory"),
 };
 
@@ -151,8 +151,9 @@ static char  s_args[MAX_ARGS][MAX_ARG_LEN];
 /*** Function Prototypes ***/
 static int parse_args(char *buf);
 static void parse_cmd(char *buf);
-
+static bool IsClockRunning(void);
 static char *FSErrorString(int errno);
+static FRESULT scan_files (char* path);
 
 /*** External Data Items ***/
 extern SYSDATA g_sys;
@@ -341,7 +342,7 @@ Void CLITaskFxn(UArg arg0, UArg arg1)
             {
                 if (cnt < MAX_CHARS)
                 {
-                    if (isalnum((int)ch) || strchr(s_delim, (int)ch) || (ch == '.'))
+                    if (isgraph((int)ch) || strchr(s_delim, (int)ch) || (ch == '.'))
                     {
                         s_cmdbuf[cnt++] = tolower(ch);
                         s_cmdbuf[cnt] = 0;
@@ -405,6 +406,18 @@ void parse_cmd(char *buf)
     CLI_puts("Command Not Found\n");
 }
 
+
+bool IsClockRunning(void)
+{
+    if (!MCP79410_IsRunning(g_sys.handleRTC))
+    {
+        CLI_printf("clock not running - set/time or date first\n");
+        return false;
+    }
+
+    return true;
+}
+
 //*****************************************************************************
 // CLI Command Handlers
 //*****************************************************************************
@@ -423,17 +436,20 @@ void cmd_help(int argc, char *argv[])
     }
 }
 
+
 void cmd_about(int argc, char *argv[])
 {
     CLI_printf("X24015 v%d.%02d.%03d\n", FIRMWARE_VER, FIRMWARE_REV, FIRMWARE_BUILD);
     CLI_puts("Copyright (C) 2020, RTZ Microsystems, LLC.\n");
 }
 
+
 void cmd_cls(int argc, char *argv[])
 {
     CLI_puts(VT100_CLS);
     CLI_puts(VT100_HOME);
 }
+
 
 void cmd_sernum(int argc, char *argv[])
 {
@@ -443,10 +459,12 @@ void cmd_sernum(int argc, char *argv[])
     CLI_printf("%s\n", serialnum);
 }
 
+
 void cmd_ipaddr(int argc, char *argv[])
 {
     CLI_printf("%s\n", g_sys.ipAddr);
 }
+
 
 void cmd_macaddr(int argc, char *argv[])
 {
@@ -459,114 +477,193 @@ void cmd_macaddr(int argc, char *argv[])
     CLI_printf("%s\n", mac);
 }
 
+
 void cmd_time(int argc, char *argv[])
 {
-    char str[32];
     RTCC_Struct ts;
 
-    str[0] = '\0';
+    if (argc == 0)
+    {
+        if (!IsClockRunning())
+            return;
 
-    if (!MCP79410_IsRunning(g_sys.handleRTC))
-    {
-        CLI_printf("clock not running!\n");
-    }
-    else
-    {
         MCP79410_GetTime(g_sys.handleRTC, &ts);
 
-        sprintf(str, "%d:%02d:%02d %d/%d/%d",
-                ts.hour, ts.min, ts.sec,
-                ts.month, ts.date,
-                ts.year + 2000);
-
-        CLI_printf("%s\n", str);
+        CLI_printf("Current time: %d:%02d:%02d\n", ts.hour, ts.min, ts.sec);
     }
-}
-
-void cmd_timeset(int argc, char *argv[])
-{
-    char str[32];
-    RTCC_Struct ts;
-
-    str[0] = '\0';
-
-    if (argc == 6)
+    else if (argc == 3)
     {
+        /* Get current time/date */
+        MCP79410_GetTime(g_sys.handleRTC, &ts);
+
         ts.hour    = (uint8_t)atoi(argv[0]);
         ts.min     = (uint8_t)atoi(argv[1]);
         ts.sec     = (uint8_t)atoi(argv[2]);
-        ts.month   = (uint8_t)atoi(argv[3]);;
-        ts.date    = (uint8_t)atoi(argv[4]);
-        ts.weekday = (uint8_t)((ts.date % 7) + 1);
-        ts.year    = (uint8_t)(atoi(argv[5]) - 2000);
 
         MCP79410_SetHourFormat(g_sys.handleRTC, H24);                // Set hour format to military time standard
         MCP79410_EnableVbat(g_sys.handleRTC);                        // Enable battery backup
         MCP79410_SetTime(g_sys.handleRTC, &ts);
         MCP79410_EnableOscillator(g_sys.handleRTC);                  // Start clock by enabling oscillator
 
-        CLI_printf("time and date set!\n", str);
+        CLI_printf("Time set!\n");
     }
     else
     {
-        CLI_printf("enter time/date as: hh:mm:ss mm/dd/yyyy\n");
+        CLI_printf("Enter time as: hh:mm:ss\n");
     }
 }
 
+
+void cmd_date(int argc, char *argv[])
+{
+    RTCC_Struct ts;
+
+    if (argc == 0)
+    {
+        if (!IsClockRunning())
+            return;
+
+        MCP79410_GetTime(g_sys.handleRTC, &ts);
+
+        CLI_printf("Current date: %d/%d/%d\n", ts.month, ts.date, ts.year+2000);
+    }
+    else if (argc == 3)
+    {
+        /* Get current time/date */
+        MCP79410_GetTime(g_sys.handleRTC, &ts);
+
+        ts.month   = (uint8_t)atoi(argv[0]);
+        ts.date    = (uint8_t)atoi(argv[1]);
+        ts.year    = (uint8_t)(atoi(argv[2]) - 2000);
+        ts.weekday = (uint8_t)((ts.date % 7) + 1);
+
+        MCP79410_SetHourFormat(g_sys.handleRTC, H24);                // Set hour format to military time standard
+        MCP79410_EnableVbat(g_sys.handleRTC);                        // Enable battery backup
+        MCP79410_SetTime(g_sys.handleRTC, &ts);
+        MCP79410_EnableOscillator(g_sys.handleRTC);                  // Start clock by enabling oscillator
+
+        CLI_printf("Date set!\n");
+    }
+    else
+    {
+        CLI_printf("Enter date as: mm/dd/yyyy\n");
+    }
+}
+
+
 void cmd_dir(int argc, char *argv[])
 {
-    //int files = 0;
-    FIL file;
     FRESULT res;
     //static DIR dir;
     //static FILINFO fno; /* File information */
-
+    char buff[256];
 
     if (g_sys.i2c2 == NULL)
     {
-        CLI_printf("no SD drive open\n");
+        CLI_printf("ERROR: no SD driver open\n");
         return;
     }
     else
     {
-        if ((res = f_open(&file, "bootld.bin", FA_READ)) != FR_OK)
-        {
-            CLI_printf("ERROR(%d): %s\n", res, FSErrorString(res));
-        }
-        else
-        {
+        strcpy(buff, "/");
 
-            f_close(&file);
+        if (argc >= 1)
+        {
+            strncpy(buff, argv[0], sizeof(buff)-1);
+            buff[sizeof(buff)-1] = 0;
         }
 
+        res = scan_files(buff);
 
 #if 0
-        if ((res = f_opendir(&dir, ".")) != FR_OK)
+        if ((res = f_opendir(&dir, "/")) != FR_OK)
         {
             CLI_printf("dir empty\n");
             return;
         }
         else
         {
-            res = f_findfirst(&dir, &fno, "", "*.*");
-
-            /* Loop while an item is found */
-
-            while (res == FR_OK && fno.fname[0])
+            for (;;)
             {
-                /* Print the object name */
-                CLI_printf("%s\n", fno.fname);
+                /* Read a directory item */
+                res = f_readdir(&dir, &fno);
 
-                /* Search for next item */
-                res = f_findnext(&dir, &fno);
+                /* Break on error or end of dir */
+                if (res != FR_OK || fno.fname[0] == 0)
+                    break;
+
+                if (fno.fattrib & AM_DIR)
+                {
+                    CLI_printf("<%s>\n", fno.fname);
+#if 0
+                    /* It is a directory */
+                    i = strlen(path);
+                    sprintf(&path[i], "/%s", fno.fname);
+                    res = scan_files(path);                    /* Enter the directory */
+                    if (res != FR_OK) break;
+                    path[i] = 0;
+#endif
+                } else {                                       /* It is a file. */
+                    CLI_printf("\t\t%s\n", fno.fname);
+                }
             }
-
             f_closedir(&dir);
         }
+
+        f_closedir(&dir);
 #endif
     }
+}
 
-    //CLI_printf("%s\n");
+/* Start node to be scanned (***also used as work area***) */
+
+FRESULT scan_files (char* path)
+{
+    FRESULT res;
+    DIR dir;
+    UINT i;
+    static FILINFO fno;
+
+    /* Open the directory */
+    res = f_opendir(&dir, path);
+
+    if (res == FR_OK)
+    {
+        for (;;)
+        {
+            /* Read a directory item */
+            res = f_readdir(&dir, &fno);
+
+            /* Break on error or end of dir */
+            if (res != FR_OK || fno.fname[0] == 0)
+                break;
+
+            if (fno.fattrib & AM_DIR)
+            {
+                /* It is a directory */
+                i = strlen(path);
+
+                sprintf(&path[i], "/%s", fno.fname);
+
+                /* Enter the directory */
+                res = scan_files(path);
+
+                if (res != FR_OK)
+                    break;
+
+                path[i] = 0;
+            }
+            else
+            {
+                /* It is a file. */
+                CLI_printf("%s/%s\n", path, fno.fname);
+            }
+        }
+
+        f_closedir(&dir);
+    }
+
+    return res;
 }
 
 // End-Of-File
