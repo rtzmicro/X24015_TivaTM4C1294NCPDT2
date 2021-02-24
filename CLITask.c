@@ -104,26 +104,28 @@ typedef struct {
 MK_CMD(cls);
 MK_CMD(help);
 MK_CMD(about);
-MK_CMD(ipaddr);
-MK_CMD(macaddr);
-MK_CMD(sernum);
+MK_CMD(ip);
+MK_CMD(mac);
+MK_CMD(sn);
 MK_CMD(time);
 MK_CMD(date);
 MK_CMD(dir);
+MK_CMD(cd);
 
 /* The dispatch table */
 #define CMD(func, help) {#func, cmd_ ## func, help}
 
-cmd_t dispatch[] = {
+static cmd_t dispatch[] = {
     CMD(cls, "Clear the screen"),
     CMD(help, "Display this help"),
     CMD(about, "About the system"),
-    CMD(ipaddr, "Displays IP address"),
-    CMD(macaddr, "Displays MAC address"),
-    CMD(sernum, "Display serial number"),
+    CMD(ip, "Displays IP address"),
+    CMD(mac, "Displays MAC address"),
+    CMD(sn, "Display serial number"),
     CMD(time, "display current time"),
     CMD(date, "display current date"),
     CMD(dir, "list directory"),
+    CMD(cd, "change directory"),
 };
 
 #define NUM_CMDS    (sizeof(dispatch)/sizeof(cmd_t))
@@ -133,7 +135,7 @@ cmd_t dispatch[] = {
 //*****************************************************************************
 
 #define MAX_CHARS       80
-
+#define MAX_PATH        256
 #define MAX_ARGS        8
 #define MAX_ARG_LEN     16
 
@@ -147,6 +149,10 @@ static char s_cmdprev[MAX_CHARS+3];
 static int   s_argc = 0;
 static char* s_argv[MAX_ARGS];
 static char  s_args[MAX_ARGS][MAX_ARG_LEN];
+
+/* Current Working Directory */
+static char s_cwd[MAX_PATH] = "\\";
+static char s_drive = '0';
 
 /*** Function Prototypes ***/
 static int parse_args(char *buf);
@@ -242,8 +248,22 @@ void CLI_prompt(void)
 {
     CLI_putc(CRET);
     CLI_putc(LF);
+    CLI_putc(s_drive);
+    CLI_putc(':');
+    CLI_puts(s_cwd);
     CLI_putc('>');
-    CLI_putc(' ');
+}
+
+void CLI_about(void)
+{
+    CLI_printf("XMOD X24015 [Version %d.%02d.%03d]\n", FIRMWARE_VER, FIRMWARE_REV, FIRMWARE_BUILD);
+    CLI_puts("(C) 2021 RTZ Microsystems. All Rights Reserved.\n");
+}
+
+void CLI_home(void)
+{
+    CLI_printf(VT100_HOME);
+    CLI_printf(VT100_CLS);
 }
 
 //*****************************************************************************
@@ -290,11 +310,9 @@ Void CLITaskFxn(UArg arg0, UArg arg1)
     uint8_t ch;
     int cnt = 0;
 
-    CLI_printf(VT100_HOME);
-    CLI_printf(VT100_CLS);
-
-    CLI_printf("X24015 v%d.%02d.%03d\n\n", FIRMWARE_VER, FIRMWARE_REV, FIRMWARE_BUILD);
-    CLI_puts("Enter 'help' to view a list valid commands\n\n> ");
+    CLI_home();
+    CLI_about();
+    CLI_prompt();
 
     while (true)
     {
@@ -403,7 +421,7 @@ void parse_cmd(char *buf)
         }
     }
 
-    CLI_puts("Command Not Found\n");
+    CLI_puts("Command not found.\n");
 }
 
 
@@ -431,7 +449,6 @@ void cmd_help(int argc, char *argv[])
     while(i--)
     {
         cmd_t cmd = dispatch[i];
-
         CLI_printf("%10s\t %s\n", cmd.name, cmd.doc);
     }
 }
@@ -439,34 +456,34 @@ void cmd_help(int argc, char *argv[])
 
 void cmd_about(int argc, char *argv[])
 {
-    CLI_printf("X24015 v%d.%02d.%03d\n", FIRMWARE_VER, FIRMWARE_REV, FIRMWARE_BUILD);
-    CLI_puts("Copyright (C) 2020, RTZ Microsystems, LLC.\n");
+    CLI_about();
 }
 
 
 void cmd_cls(int argc, char *argv[])
 {
-    CLI_puts(VT100_CLS);
-    CLI_puts(VT100_HOME);
+    CLI_home();
 }
 
 
-void cmd_sernum(int argc, char *argv[])
+void cmd_sn(int argc, char *argv[])
 {
     char serialnum[64];
+
     /*  Format the 64 bit GUID as a string */
     GetHexStr(serialnum, g_sys.ui8SerialNumber, 16);
-    CLI_printf("%s\n", serialnum);
+
+    CLI_printf("Serial#: %s\n", serialnum);
 }
 
 
-void cmd_ipaddr(int argc, char *argv[])
+void cmd_ip(int argc, char *argv[])
 {
-    CLI_printf("%s\n", g_sys.ipAddr);
+    CLI_printf("IP address: %s\n", g_sys.ipAddr);
 }
 
 
-void cmd_macaddr(int argc, char *argv[])
+void cmd_mac(int argc, char *argv[])
 {
     char mac[32];
 
@@ -474,7 +491,7 @@ void cmd_macaddr(int argc, char *argv[])
             g_sys.ui8MAC[0], g_sys.ui8MAC[1], g_sys.ui8MAC[2],
             g_sys.ui8MAC[3], g_sys.ui8MAC[4], g_sys.ui8MAC[5]);
 
-    CLI_printf("%s\n", mac);
+    CLI_printf("MAC address: %s\n", mac);
 }
 
 
@@ -550,13 +567,66 @@ void cmd_date(int argc, char *argv[])
     }
 }
 
+void cmd_cd(int argc, char *argv[])
+{
+    char *p;
+    char *cmd = argv[0];
+    char cwd[MAX_PATH];
+
+    if (argc)
+    {
+        strncpy(cwd, s_cwd, MAX_PATH-1);
+        cwd[MAX_PATH-1] = 0;
+
+        if (strlen(argv[0]) > 0)
+        {
+            if (strcmp(cmd, "..") == 0)
+            {
+                if (strlen(cwd) > 1)
+                {
+                    /* Search reverse for last slash */
+                    if ((p = strrchr(cwd, '\\')) != NULL)
+                    {
+                        /* If we're at root, terminate after root slash.
+                         * Otherwise, terminate at the slash to trim path.
+                         */
+                        if (p == &cwd[0])
+                            *(p+1) = 0;
+                        else
+                            *p = 0;
+
+                        strcpy(s_cwd, cwd);
+                    }
+                }
+            }
+            else
+            {
+                if (*cmd == '\\')
+                {
+                    strcpy(cwd, cmd);
+                }
+                else
+                {
+                    if (strlen(cwd) >  1)
+                        strcat(cwd, "\\");
+
+                    strcat(cwd, cmd);
+                }
+
+                strcpy(s_cwd, cwd);
+            }
+        }
+    }
+
+    CLI_printf("%c:%s\n", s_drive, s_cwd);
+}
 
 void cmd_dir(int argc, char *argv[])
 {
     FRESULT res;
     //static DIR dir;
     //static FILINFO fno; /* File information */
-    char buff[256];
+    static char buff[MAX_PATH];
 
     if (g_sys.i2c2 == NULL)
     {
@@ -565,6 +635,8 @@ void cmd_dir(int argc, char *argv[])
     }
     else
     {
+        CLI_printf("\n Directory of %c:%s\n\n", s_drive, s_cwd);
+
         strcpy(buff, "/");
 
         if (argc >= 1)
@@ -625,9 +697,11 @@ FRESULT scan_files (char* path)
     static FILINFO fno;
 
     /* Open the directory */
-    res = f_opendir(&dir, path);
-
-    if (res == FR_OK)
+    if ((res = f_opendir(&dir, path)) != FR_OK)
+    {
+        CLI_printf("Error: %s\n", FSErrorString(res));
+    }
+    else
     {
         for (;;)
         {
