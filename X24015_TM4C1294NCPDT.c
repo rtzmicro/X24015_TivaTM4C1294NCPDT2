@@ -717,10 +717,6 @@ void X24015_initSDSPI(void)
                      GPIO_PIN_7,
                      GPIO_STRENGTH_4MA, GPIO_PIN_TYPE_STD);
 
-    // [RES] DEBUG
-    GPIOPinWrite(GPIO_PORTK_BASE, GPIO_PIN_7, 0);
-    GPIOPinWrite(GPIO_PORTK_BASE, GPIO_PIN_7, 1);
-
     SDSPI_init();
 }
 
