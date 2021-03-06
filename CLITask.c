@@ -122,10 +122,10 @@ static cmd_t dispatch[] = {
     CMD(ip, "Displays IP address"),
     CMD(mac, "Displays MAC address"),
     CMD(sn, "Display serial number"),
-    CMD(time, "display current time"),
-    CMD(date, "display current date"),
-    CMD(dir, "list directory"),
-    CMD(cd, "change directory"),
+    CMD(time, "Display current time"),
+    CMD(date, "Display current date"),
+    CMD(dir, "List directory"),
+    CMD(cd, "Change directory"),
 };
 
 #define NUM_CMDS    (sizeof(dispatch)/sizeof(cmd_t))
@@ -138,7 +138,6 @@ static cmd_t dispatch[] = {
 #define MAX_PATH        256
 #define MAX_ARGS        8
 #define MAX_ARG_LEN     16
-
 
 /*** Static Data Items ***/
 static UART_Handle s_handleUart;
@@ -442,6 +441,8 @@ bool IsClockRunning(void)
 
 void cmd_help(int argc, char *argv[])
 {
+    char name[16];
+    int x, len;
     int i = NUM_CMDS;
 
     CLI_puts("\nAvailable Commands:\n\n");
@@ -449,10 +450,21 @@ void cmd_help(int argc, char *argv[])
     while(i--)
     {
         cmd_t cmd = dispatch[i];
-        CLI_printf("%10s\t %s\n", cmd.name, cmd.doc);
+
+        len = strlen(cmd.name);
+
+        for (x=0; x < len; x++)
+        {
+            name[x] = toupper(cmd.name[x]);
+            name[x+1] = 0;
+
+            if (x >= sizeof(name)-1)
+                break;
+        }
+
+        CLI_printf("%-10s%s\n", name, cmd.doc);
     }
 }
-
 
 void cmd_about(int argc, char *argv[])
 {
