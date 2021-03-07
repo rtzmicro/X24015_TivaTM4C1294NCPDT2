@@ -353,7 +353,7 @@ bool Init_Peripherals(void)
     spiParams.bitRate         = 100000;            /* 1 Mhz */
     spiParams.dataSize        = 8;
 
-    if ((g_sys.spi0 = SPI_open(Board_spiSpare, &spiParams)) == NULL)
+    if ((g_sys.spi0 = SPI_open(Board_SPI0, &spiParams)) == NULL)
     {
         System_printf("Error: Unable to open SPI2 port\n");
         System_flush();
@@ -561,21 +561,21 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
         if (count++ > 10)
         {
             count = 0;
-            GPIO_toggle(Board_LED_ALM);
+            //GPIO_toggle(Board_LED_ALM);
         }
 
         if (g_sys.adcID)
         {
-            /* Read ADC level for CHAN-1 in SLOT-1 */
+            /* Read ADC level for CHAN-1 */
             g_sys.adcData[0] = ADCReadChannel(g_sys.AD7799Handle1, 0);
 
-            /* Read ADC level for CHAN-2 in SLOT-2 */
+            /* Read ADC level for CHAN-2 */
             g_sys.adcData[1] = ADCReadChannel(g_sys.AD7799Handle1, 1);
 
-            /* Read ADC level for CHAN-3 in SLOT-3 */
+            /* Read ADC level for CHAN-3 */
             g_sys.adcData[2] = ADCReadChannel(g_sys.AD7799Handle2, 0);
 
-            /* Read ADC level for CHAN-4 in SLOT-4 */
+            /* Read ADC level for CHAN-4 */
             g_sys.adcData[3] = ADCReadChannel(g_sys.AD7799Handle2, 1);
         }
 
