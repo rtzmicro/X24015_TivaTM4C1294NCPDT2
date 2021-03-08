@@ -227,6 +227,18 @@ void CLI_putc(int ch)
     UART_write(s_handleUart, &ch, 1);
 }
 
+int CLI_getc(void)
+{
+    int ch = -1;
+    int rc;
+
+    /* Read a character from the console */
+    if ((rc = UART_read(s_handleUart, &ch, 1)) == 1)
+        return rc;
+
+    return rc;
+}
+
 void CLI_puts(char* s)
 {
     int l = strlen(s);
