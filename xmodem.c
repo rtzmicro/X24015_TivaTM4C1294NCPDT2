@@ -173,7 +173,7 @@ xmodem_info(char *bufp)
  * a number of these, and switch between them automatically.
  */
 
-int xmodem_receive(FILE* fp)
+int xmodem_receive(FIL* fp)
 {
     unsigned char c, blk, n;
     unsigned short crc, ncrc;

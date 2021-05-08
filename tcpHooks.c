@@ -61,11 +61,12 @@
 #include "X24015.h"
 #include "Board.h"
 #include "Utils.h"
+#include "XMODTCP.h"
 
-#define TCPPACKETSIZE 256
-#define MAX_WORKERS 3
+#define TCPPACKETSIZE   256
+#define MAX_WORKERS     3
 
-#define TCPPORT 1000
+#define TCPPORT         1000
 
 #ifdef CYASSL_TIRTOS
 #define TCPHANDLERSTACK 8704
@@ -74,18 +75,22 @@
 #endif
 
 /*** External Data Items ***/
+
 extern SYSDATA g_sys;
 extern SYSCONFIG g_cfg;
 
-extern Void tcpModbusHandler(UArg arg0, UArg arg1);
+/*** Prototypes ***/
 
-/* Prototypes */
-Void tcpHandler(UArg arg0, UArg arg1);
-Void tcpWorker(UArg arg0, UArg arg1);
 void netOpenHook(void);
 
-/* External Function Prototypes */
+static Void tcpHandler(UArg arg0, UArg arg1);
+static Void tcpWorker(UArg arg0, UArg arg1);
+static int TcpRecv(int fd, void *pbuf, int size, int flags);
+static int TcpSend(int fd, void *pbuf, int size, int flags);
+
+/*** External Function Prototypes ***/
 extern void NtIPN2Str(uint32_t IPAddr, char *str);
+extern Void tcpModbusHandler(UArg arg0, UArg arg1);
 
 //*****************************************************************************
 // This is a hook into the NDK stack to allow delaying execution of the NDK
@@ -117,6 +122,68 @@ void netIPUpdate(unsigned int IPAddr, unsigned int IfIdx, unsigned int fAdd)
     System_flush();
 }
 
+
+/* This function performs a blocked read for 'size' number of bytes. It will
+ * continue to read until all bytes are read, or return if an error occurs.
+ */
+
+int TcpRecv(int fd, void *pbuf, int size, int flags)
+{
+    int bytesRcvd = 0;
+    int bytesToRecv = size;
+
+    uint8_t* buf = (uint8_t*)pbuf;
+
+    do {
+
+        if ((bytesRcvd = recv(fd, buf, bytesToRecv, flags)) <= 0)
+        {
+            System_printf("Error: TCP recv failed %d.\n", bytesRcvd);
+            break;
+        }
+
+        bytesToRecv -= bytesRcvd;
+
+        buf += bytesRcvd;
+
+    } while(bytesToRecv > 0);
+
+    return bytesRcvd;
+}
+
+/* This function performs a blocked write for 'size' number of bytes. It will
+ * continue to write until all bytes are sent, or return if an error occurs.
+ */
+
+int TcpSend(int fd, void *pbuf, int size, int flags)
+{
+    int bytesSent = 0;
+    int bytesToSend = size;
+
+    uint8_t* buf = (uint8_t*)pbuf;
+
+    do {
+
+        if ((bytesSent = send(fd, buf, bytesToSend, flags)) <= 0)
+        {
+            System_printf("Error: TCP send failed %d.\n", bytesSent);
+            break;
+        }
+
+        bytesToSend -= bytesSent;
+
+        buf += bytesSent;
+
+    } while (bytesToSend > 0);
+
+    return bytesSent;
+}
+
+//*****************************************************************************
+// This handler is called when the network is opened. Start up the
+// TCP listener task on the port number passed in the arg list.
+//*****************************************************************************
+
 void netOpenHook(void)
 {
     Task_Handle taskHandle;
@@ -135,11 +202,11 @@ void netOpenHook(void)
 
     taskParams.stackSize = TCPHANDLERSTACK;
     taskParams.priority  = 1;
-    taskParams.arg0      = 502; //TCPPORT;
+    taskParams.arg0      = XMOD_TCP_PORT;
 
-    //taskHandle = Task_create((Task_FuncPtr)tcpHandler, &taskParams, &eb);
+    taskHandle = Task_create((Task_FuncPtr)tcpHandler, &taskParams, &eb);
 
-    taskHandle = Task_create((Task_FuncPtr)tcpModbusHandler, &taskParams, &eb);
+    //taskHandle = Task_create((Task_FuncPtr)tcpModbusHandler, &taskParams, &eb);
 
     if (taskHandle == NULL)
         System_printf("netOpenHook: Failed to create tcpStateHandler Task\n");
@@ -169,23 +236,27 @@ Void tcpHandler(UArg arg0, UArg arg1)
     fdOpenSession(hSelf);
 
     server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
     if (server == -1) {
         System_printf("Error: socket not created.\n");
         goto shutdown;
     }
 
     memset(&localAddr, 0, sizeof(localAddr));
+
     localAddr.sin_family = AF_INET;
     localAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     localAddr.sin_port = htons(arg0);
 
     status = bind(server, (struct sockaddr *)&localAddr, sizeof(localAddr));
+
     if (status == -1) {
         System_printf("Error: bind failed.\n");
         goto shutdown;
     }
 
     status = listen(server, MAX_WORKERS);
+
     if (status == -1) {
         System_printf("Error: listen failed.\n");
         goto shutdown;
@@ -233,27 +304,121 @@ shutdown:
 // Task to handle TCP connection. Can be multiple Tasks running this function.
 //*****************************************************************************
 
+static int cmd_adc_get_config(XMOD_CMD_HDR* hdr, XMOD_ADC_GET_CONFIG* msg);
+static int cmd_adc_read_data(XMOD_CMD_HDR* hdr, XMOD_ADC_READ_DATA* msg);
+
+
 Void tcpWorker(UArg arg0, UArg arg1)
 {
-    int  clientfd = (int)arg0;
+    int  fd = (int)arg0;
     int  bytesRcvd;
     int  bytesSent;
-    char buffer[TCPPACKETSIZE];
+    int  bytesToSend;
 
-    System_printf("tcpWorker: start clientfd = 0x%x\n", clientfd);
+    struct packet {
+        XMOD_CMD_HDR hdr;
+        uint8_t      data[TCPPACKETSIZE];
+    } buf;
 
-    while ((bytesRcvd = recv(clientfd, buffer, TCPPACKETSIZE, 0)) > 0)
+    System_printf("tcpWorker: start fd = 0x%x\n", fd);
+
+    while (1)
     {
-        bytesSent = send(clientfd, buffer, bytesRcvd, 0);
+        /* Read the command message header */
+        bytesRcvd = TcpRecv(fd, &buf.hdr, sizeof(XMOD_CMD_HDR), 0);
 
-        if (bytesSent < 0 || bytesSent != bytesRcvd) {
+        if (bytesRcvd <= 0)
+            break;
+
+        /* Validate the command message header length */
+        if (buf.hdr.hdrlen != sizeof(XMOD_CMD_HDR))
+        {
+            System_printf("tcpWorker: invalid header size %x\n", buf.hdr.hdrlen);
+            break;
+        }
+
+        /* If any trailing request data after header, read it to */
+        if (buf.hdr.datalen)
+        {
+            if (buf.hdr.datalen > TCPPACKETSIZE)
+            {
+                System_printf("tcpWorker: packet size overflow! %x\n", buf.hdr.datalen);
+                break;
+            }
+
+            bytesRcvd = TcpRecv(fd, &buf.data, buf.hdr.datalen, 0);
+
+            if (bytesRcvd <= 0)
+                break;
+        }
+
+        /* Now validate and process the command request */
+
+        switch(buf.hdr.command)
+        {
+        case XMOD_CMD_ADC_GET_CONFIG:
+            bytesToSend = cmd_adc_get_config(&buf.hdr, (XMOD_ADC_GET_CONFIG*)&buf.data);
+            break;
+
+        case XMOD_CMD_ADC_READ_DATA:
+            bytesToSend = cmd_adc_read_data(&buf.hdr, (XMOD_ADC_READ_DATA*)&buf.data);
+            break;
+
+        default:
+            buf.hdr.status = (uint16_t)-1;
+            bytesToSend = 0;
+            break;
+        }
+
+        /* The reply message data size */
+        buf.hdr.datalen = bytesToSend;
+        buf.hdr.hdrlen  = sizeof(XMOD_CMD_HDR);
+
+        /* Send header and any reply data */
+        bytesToSend += sizeof(XMOD_CMD_HDR);
+
+        /* Send the message header and reply data to the client */
+        bytesSent = TcpSend(fd, &buf, bytesToSend, 0);
+
+        if (bytesSent < 0 || bytesSent != bytesToSend)
+        {
             System_printf("Error: send failed.\n");
             break;
         }
     }
 
-    System_printf("tcpWorker stop clientfd = 0x%x\n", clientfd);
+    System_printf("tcpWorker stop fd = 0x%x\n", fd);
 
-    close(clientfd);
+    close(fd);
 }
 
+//*****************************************************************************
+// Client command request handlers
+//*****************************************************************************
+
+int cmd_adc_get_config(XMOD_CMD_HDR* hdr, XMOD_ADC_GET_CONFIG* msg)
+{
+    msg->adc_channels = (uint8_t)g_sys.adcChannels;
+    msg->adc_id       = (uint8_t)g_sys.adcID;
+
+    hdr->status = 0;
+
+    return sizeof(XMOD_ADC_GET_CONFIG);
+}
+
+int cmd_adc_read_data(XMOD_CMD_HDR* hdr, XMOD_ADC_READ_DATA* msg)
+{
+    int i;
+
+    for (i=0; i < XMOD_ADC_CHANNELS; i++)
+    {
+        if (i > g_sys.adcChannels)
+            break;
+
+        msg->adc_data[i] = (uint8_t)g_sys.adcData[i];
+    }
+
+    hdr->status = 0;
+
+    return sizeof(XMOD_ADC_READ_DATA);
+}
