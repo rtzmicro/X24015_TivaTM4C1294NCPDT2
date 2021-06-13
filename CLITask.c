@@ -111,7 +111,7 @@ MK_CMD(time);
 MK_CMD(date);
 MK_CMD(dir);
 MK_CMD(cd);
-MK_CMD(xmodem);
+MK_CMD(xmdm);
 
 /* The dispatch table */
 #define CMD(func, help) {#func, cmd_ ## func, help}
@@ -127,7 +127,7 @@ static cmd_t dispatch[] = {
     CMD(date, "Display current date"),
     CMD(dir, "List directory"),
     CMD(cd, "Change directory"),
-    CMD(xmodem, "Send/Receive File"),
+    CMD(xmdm, "Send/Receive File"),
 };
 
 #define NUM_CMDS    (sizeof(dispatch)/sizeof(cmd_t))
@@ -155,12 +155,15 @@ static char  s_args[MAX_ARGS][MAX_ARG_LEN];
 static char s_cwd[MAX_PATH] = "\\";
 static char s_drive = '0';
 
-/*** Function Prototypes ***/
+/*** Static Function Prototypes ***/
 static int parse_args(char *buf);
 static void parse_cmd(char *buf);
 static bool IsClockRunning(void);
 static char *FSErrorString(int errno);
 static FRESULT scan_files (char* path);
+
+/*** External Function Prototypes ***/
+extern int xmodem_receive(FIL* fp);
 
 /*** External Data Items ***/
 extern SYSDATA g_sys;
@@ -767,7 +770,7 @@ FRESULT scan_files (char* path)
 }
 
 
-void cmd_xmodem(int argc, char *argv[])
+void cmd_xmdm(int argc, char *argv[])
 {
     FIL fp;
     FRESULT res = FR_OK;
@@ -775,8 +778,8 @@ void cmd_xmodem(int argc, char *argv[])
     if (argc != 2)
     {
         CLI_printf("Invalid Arguments\n");
-        CLI_printf("xmodem s {filename} [sends a file]\n");
-        CLI_printf("xmodem r {filename} [receives a file]\n");
+        CLI_printf("xmdm s {filename} [sends a file]\n");
+        CLI_printf("xmdm r {filename} [receives a file]\n");
     }
 
     if (*argv[0] == toupper('R'))
@@ -784,8 +787,14 @@ void cmd_xmodem(int argc, char *argv[])
         /* Receive a file */
         if ((res = f_open(&fp, argv[1], FA_WRITE|FA_CREATE_NEW)) == FR_OK)
         {
-
+            CLI_printf("Start Xmodem Send!\n");
+            xmodem_receive(&fp);
             f_close(&fp);
+            CLI_printf("Xmodem Receive Complete!\n");
+        }
+        else
+        {
+            CLI_printf("ERROR: %s\n", FSErrorString(res));
         }
     }
     else if (*argv[0] == toupper('S'))
@@ -793,18 +802,17 @@ void cmd_xmodem(int argc, char *argv[])
         /* Send a file */
         if ((res = f_open(&fp, argv[1], FA_READ)) == FR_OK)
         {
-
+            CLI_printf("Not Implemented Yet!\n");
             f_close(&fp);
+        }
+        else
+        {
+            CLI_printf("ERROR: %s\n", FSErrorString(res));
         }
     }
     else
     {
         CLI_printf("Invalid Option\n");
-    }
-
-    if (res != FR_OK)
-    {
-        CLI_printf("Error: %s\n", FSErrorString(res));
     }
 }
 

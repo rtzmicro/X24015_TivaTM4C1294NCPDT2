@@ -108,13 +108,11 @@
 #define SUB		0x1a		/* final packet filler value */
 #define CRC		'C'
 
-
 unsigned char	xmodem_buff[PKT_SIZE_1K];
 #if USE_YMODEM
 char		xmodem_name[32];
 unsigned long	xmodem_size;
 #endif
-
 
 /* Update the CRC16 value for the given byte. */
 static unsigned short
@@ -164,6 +162,32 @@ xmodem_info(char *bufp)
 }
 #endif
 
+/*
+ * Write a block of data to a file stream.
+ */
+static FRESULT
+xmodem_write_block(FIL* fp, unsigned char *buf, unsigned int size)
+{
+    unsigned int bytesToWrite = size;
+    unsigned int bytesWritten = 0;
+    FRESULT res = FR_OK;
+
+    do {
+
+        /* Write a block of data to the destination file */
+        res = f_write(fp, xmodem_buff, bytesToWrite, &bytesWritten);
+
+        if (res != FR_OK)
+            break;
+
+        bytesToWrite -= bytesWritten;
+
+        buf += bytesWritten;
+
+    } while(bytesToWrite > 0);
+
+    return res;
+}
     
 /*
  * Receive a file using the XMODEM protocol.
@@ -183,6 +207,7 @@ int xmodem_receive(FIL* fp)
 #if USE_YMODEM
     char eot = 0;
 #endif
+    FRESULT res;
 
     /*
      * XMODEM starts sending the first block.
@@ -194,7 +219,8 @@ int xmodem_receive(FIL* fp)
     n = 1;
 
     /* Tell sender we're ready to receive. */
-    CLI_printf("XMODEM Receive ready, start sending.\r\n");
+    System_printf("XMODEM Receive ready, start sending.\r\n");
+    System_flush();
 
     /*
      * We implement the protocol as a state machine
@@ -208,6 +234,7 @@ int xmodem_receive(FIL* fp)
     total = 0;
     state = 1;
     c = 0;
+
     while (state > 0) {
 	/* If we need data, wait for some. */
 	if (state > 1) {
@@ -224,7 +251,8 @@ int xmodem_receive(FIL* fp)
 				mode--;
 				if (mode == 0) {
 					/* no response, give up. */
-					CLI_printf("\r*** TIMEOUT ***\n\n");
+					System_printf("\r*** TIMEOUT ***\n\n");
+				    System_flush();
 					CLI_putc(CAN);
 					state = 0;
 					break;
@@ -251,7 +279,8 @@ int xmodem_receive(FIL* fp)
 				/* Error, handle it. */
 				if (++try == 10) {
 					/* Too many errors, give up. */
-					CLI_printf("\r*** TOO MANY ERRORS\r\n");
+					System_printf("\r*** TOO MANY ERRORS\r\n");
+				    System_flush();
 					CLI_putc(CAN);
 					CLI_putc(CAN);
 					CLI_putc(CAN);
@@ -322,7 +351,8 @@ int xmodem_receive(FIL* fp)
 		case 4:		/* read modulo-block number */
 			/* The block numbers must be the same. */
 			if (c != (255 - blk)) {
-				CLI_printf("\r*** BLK ERR %d/%d\r\n", blk, c);
+				System_printf("\r*** BLK ERR %d/%d\r\n", blk, c);
+			    System_flush();
 				state = 2;
 				CLI_putc(NAK);
 				break;
@@ -339,8 +369,8 @@ int xmodem_receive(FIL* fp)
 #endif
 				/* Block must be the expected one! */
 				if (blk != n) {
-					CLI_printf("\r*** UNEXP BLK %d/%d\r\n",
-								blk, n);
+					System_printf("\r*** UNEXP BLK %d/%d\r\n", blk, n);
+				    System_flush();
 					state = 2;
 					CLI_putc(NAK);
 					break;
@@ -379,7 +409,8 @@ int xmodem_receive(FIL* fp)
 				crc &= 0xff;
 				if (crc != c) {
 badcrc:
-					CLI_printf("\r*** CRC BLK %d ***\r\n", n);
+					System_printf("\r*** CRC BLK %d ***\r\n", n);
+				    System_flush();
 					state = 2;
 					CLI_putc(NAK);
 					break;
@@ -391,7 +422,8 @@ badcrc:
 
 				i = CLI_getc();
 				if (i <= 0) {
-					CLI_printf("\r*** TIMEOUT ***\r\n\n");
+					System_printf("\r*** TIMEOUT ***\r\n\n");
+				    System_flush();
 					state = 0;
 					CLI_putc(CAN);
 					break;
@@ -405,7 +437,14 @@ badcrc:
 			/* Packet was OK, so write it to the file. */
 			CLI_putc(ACK);
 
-			/* FIXME: call the FileWrite(buff, size) func here. */
+			/* Write receive block of data to file */
+			if ((res = xmodem_write_block(fp, xmodem_buff, size)) != FR_OK)
+			{
+			    System_printf("\r*** FILE WRITE ERR %d ***\r\n\n", res);
+			    System_flush();
+                state = 0;
+                break;
+			}
 
 			/* Request the next block. */
 			state = 2;
@@ -429,12 +468,15 @@ badcrc:
 
     /* Some protocol debug info. */
 #if DEBUG
-    CLI_printf("\r*** COMPLETE, state %d TOTAL %lu\r\n", state, total);
+    System_printf("\r*** COMPLETE, state %d TOTAL %lu\r\n", state, total);
 #endif
 #if USE_YMODEM
-    if (xmodem_name[0] != '\0') CLI_printf("\r*** '%s', size %lu bytes\r\n",
-						xmodem_name, xmodem_size);
+    if (xmodem_name[0] != '\0')
+        System_printf("\r*** '%s', size %lu bytes\r\n", xmodem_name, xmodem_size);
 #endif
+    System_flush();
 
-    return(state);
+    return state;
 }
+
+/* End-Of-File */

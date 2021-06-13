@@ -188,7 +188,8 @@
  *  @sa         AD7799_Params_init()
  */
 typedef struct AD7799_Params {
-    uint8_t dummy;
+    SPI_Handle  spiHandle;
+    uint32_t    gpioCSIndex;
 } AD7799_Params;
 
 /*!
