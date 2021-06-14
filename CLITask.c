@@ -160,7 +160,7 @@ static int parse_args(char *buf);
 static void parse_cmd(char *buf);
 static bool IsClockRunning(void);
 static char *FSErrorString(int errno);
-static FRESULT scan_files (char* path);
+static FRESULT dir_list(char* path);
 
 /*** External Function Prototypes ***/
 extern int xmodem_receive(FIL* fp);
@@ -181,7 +181,7 @@ int CLI_init(void)
 
     uartParams.readMode       = UART_MODE_BLOCKING;
     uartParams.writeMode      = UART_MODE_BLOCKING;
-    uartParams.readTimeout    = 1000;                   // 1 second read timeout
+    uartParams.readTimeout    = 5000;                   // 5 second read timeout
     uartParams.writeTimeout   = BIOS_WAIT_FOREVER;
     uartParams.readCallback   = NULL;
     uartParams.writeCallback  = NULL;
@@ -234,14 +234,13 @@ void CLI_putc(int ch)
 
 int CLI_getc(void)
 {
-    int ch = -1;
-    int rc;
+    int ch;
 
     /* Read a character from the console */
-    if ((rc = UART_read(s_handleUart, &ch, 1)) == 1)
-        return rc;
+    if (UART_read(s_handleUart, &ch, 1) == 1)
+        return ch;
 
-    return rc;
+    return -1;
 }
 
 void CLI_puts(char* s)
@@ -280,41 +279,6 @@ void CLI_home(void)
 {
     CLI_printf(VT100_HOME);
     CLI_printf(VT100_CLS);
-}
-
-//*****************************************************************************
-// Return File System Error String
-//*****************************************************************************
-
-char *FSErrorString(int errno)
-{
-    static char* FSErrorString[] = {
-        "Success",
-        "A hard error occurred",
-        "Assertion failed",
-        "Physical drive error",
-        "Could not find the file",
-        "Could not find the path",
-        "The path name format is invalid",
-        "Access denied due to prohibited access or directory full",
-        "Access denied due to prohibited access",
-        "The file/directory object is invalid",
-        "The physical drive is write protected",
-        "The logical drive number is invalid",
-        "The volume has no work area",
-        "There is no valid FAT volume",
-        "The f_mkfs() aborted due to any parameter error",
-        "Could not get a grant to access the volume within defined period",
-        "The operation is rejected according to the file sharing policy",
-        "LFN working buffer could not be allocated",
-        "Too many open files",
-        "Given parameter is invalid"
-    };
-
-    if (errno > sizeof(FSErrorString)/sizeof(char*))
-        return "???";
-
-    return FSErrorString[errno];
 }
 
 //*****************************************************************************
@@ -440,6 +404,9 @@ void parse_cmd(char *buf)
     CLI_puts("Command not found.\n");
 }
 
+//*****************************************************************************
+// Static Helper Functions
+//*****************************************************************************
 
 bool IsClockRunning(void)
 {
@@ -450,6 +417,74 @@ bool IsClockRunning(void)
     }
 
     return true;
+}
+
+char *FSErrorString(int errno)
+{
+    static char* FSErrorString[] = {
+        "Success",
+        "A hard error occurred",
+        "Assertion failed",
+        "Physical drive error",
+        "Could not find the file",
+        "Could not find the path",
+        "The path name format is invalid",
+        "Access denied due to prohibited access or directory full",
+        "Access denied due to prohibited access",
+        "The file/directory object is invalid",
+        "The physical drive is write protected",
+        "The logical drive number is invalid",
+        "The volume has no work area",
+        "There is no valid FAT volume",
+        "The f_mkfs() aborted due to any parameter error",
+        "Could not get a grant to access the volume within defined period",
+        "The operation is rejected according to the file sharing policy",
+        "LFN working buffer could not be allocated",
+        "Too many open files",
+        "Given parameter is invalid"
+    };
+
+    if (errno > sizeof(FSErrorString)/sizeof(char*))
+        return "???";
+
+    return FSErrorString[errno];
+}
+
+FRESULT dir_list(char* path)
+{
+    FRESULT res;
+    DIR dir;
+    static FILINFO fno;
+
+    /* Open the directory */
+    if ((res = f_opendir(&dir, path)) != FR_OK)
+    {
+        CLI_printf("Error: %s\n", FSErrorString(res));
+    }
+    else
+    {
+        for (;;)
+        {
+            /* Read a directory item */
+            res = f_readdir(&dir, &fno);
+
+            /* Break on error or end of dir */
+            if (res != FR_OK || fno.fname[0] == 0)
+                break;
+
+            if (fno.fattrib & AM_SYS)
+                continue;
+
+            if (fno.fattrib & AM_DIR)
+                CLI_printf("<DIR>\t%s\n", fno.fname);
+            else
+                CLI_printf("     \t%s\n", fno.fname);
+        }
+
+        f_closedir(&dir);
+    }
+
+    return res;
 }
 
 //*****************************************************************************
@@ -464,7 +499,7 @@ void cmd_help(int argc, char *argv[])
 
     CLI_puts("\nAvailable Commands:\n\n");
 
-    while(i--)
+    for(i=0; i < NUM_CMDS; i++)
     {
         cmd_t cmd = dispatch[i];
 
@@ -488,12 +523,10 @@ void cmd_about(int argc, char *argv[])
     CLI_about();
 }
 
-
 void cmd_cls(int argc, char *argv[])
 {
     CLI_home();
 }
-
 
 void cmd_sn(int argc, char *argv[])
 {
@@ -505,12 +538,10 @@ void cmd_sn(int argc, char *argv[])
     CLI_printf("Serial#: %s\n", serialnum);
 }
 
-
 void cmd_ip(int argc, char *argv[])
 {
     CLI_printf("IP address: %s\n", g_sys.ipAddr);
 }
-
 
 void cmd_mac(int argc, char *argv[])
 {
@@ -522,7 +553,6 @@ void cmd_mac(int argc, char *argv[])
 
     CLI_printf("MAC address: %s\n", mac);
 }
-
 
 void cmd_time(int argc, char *argv[])
 {
@@ -558,7 +588,6 @@ void cmd_time(int argc, char *argv[])
         CLI_printf("Enter time as: hh:mm:ss\n");
     }
 }
-
 
 void cmd_date(int argc, char *argv[])
 {
@@ -601,6 +630,7 @@ void cmd_cd(int argc, char *argv[])
     char *p;
     char *cmd = argv[0];
     char cwd[MAX_PATH];
+    FRESULT res;
 
     if (argc)
     {
@@ -647,14 +677,17 @@ void cmd_cd(int argc, char *argv[])
         }
     }
 
-    CLI_printf("%c:%s\n", s_drive, s_cwd);
+    /* Attempt to change to the directory path */
+    res = f_chdir(s_cwd);
+
+    if (res == FR_OK)
+        CLI_printf("%c:%s\n", s_drive, s_cwd);
+    else
+        CLI_puts("Cannot find path specified.\n");
 }
 
 void cmd_dir(int argc, char *argv[])
 {
-    FRESULT res;
-    //static DIR dir;
-    //static FILINFO fno; /* File information */
     static char buff[MAX_PATH];
 
     if (g_sys.i2c2 == NULL)
@@ -674,101 +707,9 @@ void cmd_dir(int argc, char *argv[])
             buff[sizeof(buff)-1] = 0;
         }
 
-        res = scan_files(buff);
-
-#if 0
-        if ((res = f_opendir(&dir, "/")) != FR_OK)
-        {
-            CLI_printf("dir empty\n");
-            return;
-        }
-        else
-        {
-            for (;;)
-            {
-                /* Read a directory item */
-                res = f_readdir(&dir, &fno);
-
-                /* Break on error or end of dir */
-                if (res != FR_OK || fno.fname[0] == 0)
-                    break;
-
-                if (fno.fattrib & AM_DIR)
-                {
-                    CLI_printf("<%s>\n", fno.fname);
-#if 0
-                    /* It is a directory */
-                    i = strlen(path);
-                    sprintf(&path[i], "/%s", fno.fname);
-                    res = scan_files(path);                    /* Enter the directory */
-                    if (res != FR_OK) break;
-                    path[i] = 0;
-#endif
-                } else {                                       /* It is a file. */
-                    CLI_printf("\t\t%s\n", fno.fname);
-                }
-            }
-            f_closedir(&dir);
-        }
-
-        f_closedir(&dir);
-#endif
+        dir_list(buff);
     }
 }
-
-/* Start node to be scanned (***also used as work area***) */
-
-FRESULT scan_files (char* path)
-{
-    FRESULT res;
-    DIR dir;
-    UINT i;
-    static FILINFO fno;
-
-    /* Open the directory */
-    if ((res = f_opendir(&dir, path)) != FR_OK)
-    {
-        CLI_printf("Error: %s\n", FSErrorString(res));
-    }
-    else
-    {
-        for (;;)
-        {
-            /* Read a directory item */
-            res = f_readdir(&dir, &fno);
-
-            /* Break on error or end of dir */
-            if (res != FR_OK || fno.fname[0] == 0)
-                break;
-
-            if (fno.fattrib & AM_DIR)
-            {
-                /* It is a directory */
-                i = strlen(path);
-
-                sprintf(&path[i], "/%s", fno.fname);
-
-                /* Enter the directory */
-                res = scan_files(path);
-
-                if (res != FR_OK)
-                    break;
-
-                path[i] = 0;
-            }
-            else
-            {
-                /* It is a file. */
-                CLI_printf("%s/%s\n", path, fno.fname);
-            }
-        }
-
-        f_closedir(&dir);
-    }
-
-    return res;
-}
-
 
 void cmd_xmdm(int argc, char *argv[])
 {
@@ -780,34 +721,35 @@ void cmd_xmdm(int argc, char *argv[])
         CLI_printf("Invalid Arguments\n");
         CLI_printf("xmdm s {filename} [sends a file]\n");
         CLI_printf("xmdm r {filename} [receives a file]\n");
+        return;
     }
 
-    if (*argv[0] == toupper('R'))
+    if (toupper(*argv[0]) == 'R')
     {
         /* Receive a file */
-        if ((res = f_open(&fp, argv[1], FA_WRITE|FA_CREATE_NEW)) == FR_OK)
+        if ((res = f_open(&fp, argv[1], FA_WRITE|FA_CREATE_NEW|FA_CREATE_ALWAYS)) == FR_OK)
         {
-            CLI_printf("Start Xmodem Send!\n");
+            CLI_printf("XModem Waiting...\n");
             xmodem_receive(&fp);
             f_close(&fp);
-            CLI_printf("Xmodem Receive Complete!\n");
+            CLI_printf("\n");
         }
         else
         {
-            CLI_printf("ERROR: %s\n", FSErrorString(res));
+            CLI_printf("Error: %s\n", FSErrorString(res));
         }
     }
-    else if (*argv[0] == toupper('S'))
+    else if (toupper(*argv[0]) == 'S')
     {
         /* Send a file */
         if ((res = f_open(&fp, argv[1], FA_READ)) == FR_OK)
         {
-            CLI_printf("Not Implemented Yet!\n");
+            CLI_printf("Not Implemented!\n");
             f_close(&fp);
         }
         else
         {
-            CLI_printf("ERROR: %s\n", FSErrorString(res));
+            CLI_printf("Error: %s\n", FSErrorString(res));
         }
     }
     else

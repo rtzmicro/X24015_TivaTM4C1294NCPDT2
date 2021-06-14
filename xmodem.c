@@ -84,7 +84,7 @@
 #include "CLITask.h"
 
 /* Feature selection. */
-#define USE_YMODEM	1		/* enable YMODEM (batch) support */
+#define USE_YMODEM	0		/* enable YMODEM (batch) support */
 
 
 /* Supported modes. */
@@ -197,6 +197,8 @@ xmodem_write_block(FIL* fp, unsigned char *buf, unsigned int size)
  * a number of these, and switch between them automatically.
  */
 
+#define MAX_TRIES   11
+
 int xmodem_receive(FIL* fp)
 {
     unsigned char c, blk, n;
@@ -218,10 +220,6 @@ int xmodem_receive(FIL* fp)
      */
     n = 1;
 
-    /* Tell sender we're ready to receive. */
-    System_printf("XMODEM Receive ready, start sending.\r\n");
-    System_flush();
-
     /*
      * We implement the protocol as a state machine
      * handling all the various tasks.  We do need
@@ -235,24 +233,25 @@ int xmodem_receive(FIL* fp)
     state = 1;
     c = 0;
 
-    while (state > 0) {
-	/* If we need data, wait for some. */
-	if (state > 1) {
-		/* Receive a byte of data. */
-		i = CLI_getc();
-		c = (unsigned char) (i & 0xff);
-	}
+    while (state > 0)
+    {
+        /* If we need data, wait for some. */
+        if (state > 1)
+        {
+            /* Receive a byte of data. */
+            i = CLI_getc();
+            c = (unsigned char) (i & 0xff);
+        }
 
-	/* Now check what we have to do with the byte. */
-	switch(state) {
+        /* Now check what we have to do with the byte. */
+        switch(state)
+        {
 		case 1:		/* send START byte and wait for command */
-			if (++try == 5) {
+			if (++try == MAX_TRIES) {
 				try = 0;
 				mode--;
 				if (mode == 0) {
 					/* no response, give up. */
-					System_printf("\r*** TIMEOUT ***\n\n");
-				    System_flush();
 					CLI_putc(CAN);
 					state = 0;
 					break;
@@ -277,10 +276,8 @@ int xmodem_receive(FIL* fp)
 				}
 
 				/* Error, handle it. */
-				if (++try == 10) {
+				if (++try == MAX_TRIES) {
 					/* Too many errors, give up. */
-					System_printf("\r*** TOO MANY ERRORS\r\n");
-				    System_flush();
 					CLI_putc(CAN);
 					CLI_putc(CAN);
 					CLI_putc(CAN);
@@ -351,8 +348,6 @@ int xmodem_receive(FIL* fp)
 		case 4:		/* read modulo-block number */
 			/* The block numbers must be the same. */
 			if (c != (255 - blk)) {
-				System_printf("\r*** BLK ERR %d/%d\r\n", blk, c);
-			    System_flush();
 				state = 2;
 				CLI_putc(NAK);
 				break;
@@ -369,8 +364,6 @@ int xmodem_receive(FIL* fp)
 #endif
 				/* Block must be the expected one! */
 				if (blk != n) {
-					System_printf("\r*** UNEXP BLK %d/%d\r\n", blk, n);
-				    System_flush();
 					state = 2;
 					CLI_putc(NAK);
 					break;
@@ -409,8 +402,6 @@ int xmodem_receive(FIL* fp)
 				crc &= 0xff;
 				if (crc != c) {
 badcrc:
-					System_printf("\r*** CRC BLK %d ***\r\n", n);
-				    System_flush();
 					state = 2;
 					CLI_putc(NAK);
 					break;
@@ -421,9 +412,7 @@ badcrc:
 				blk = c;	/* save first byte */
 
 				i = CLI_getc();
-				if (i <= 0) {
-					System_printf("\r*** TIMEOUT ***\r\n\n");
-				    System_flush();
+				if (i < 0) {
 					state = 0;
 					CLI_putc(CAN);
 					break;
@@ -440,8 +429,6 @@ badcrc:
 			/* Write receive block of data to file */
 			if ((res = xmodem_write_block(fp, xmodem_buff, size)) != FR_OK)
 			{
-			    System_printf("\r*** FILE WRITE ERR %d ***\r\n\n", res);
-			    System_flush();
                 state = 0;
                 break;
 			}
@@ -463,18 +450,8 @@ badcrc:
 #endif
 			n++;
 			break;
-	}
+        }
     }
-
-    /* Some protocol debug info. */
-#if DEBUG
-    System_printf("\r*** COMPLETE, state %d TOTAL %lu\r\n", state, total);
-#endif
-#if USE_YMODEM
-    if (xmodem_name[0] != '\0')
-        System_printf("\r*** '%s', size %lu bytes\r\n", xmodem_name, xmodem_size);
-#endif
-    System_flush();
 
     return state;
 }
