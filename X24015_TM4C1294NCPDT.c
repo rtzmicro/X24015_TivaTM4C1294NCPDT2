@@ -315,36 +315,32 @@ void X24015_initEMAC(unsigned char* mac)
  */
 GPIO_PinConfig gpioPinConfigs[] = {
     /**** Input Interrupt pins ****/
-    /* X24015_GPIO_PF4 */
-    GPIOTiva_PF_4 | GPIO_CFG_IN_PU,
-    /* X24015_GPIO_PL5 */
-    GPIOTiva_PL_5 | GPIO_CFG_IN_PU,
-    /* X24015_GPIO_PL4 */
-    GPIOTiva_PL_4 | GPIO_CFG_IN_PU,
-    /* X24015_GPIO_PL2 */
-    GPIOTiva_PL_2 | GPIO_CFG_IN_PU,
-    /* X24015_GPIO_PL3 */
-    GPIOTiva_PL_3 | GPIO_CFG_IN_PU,
-    /* X24015_GPIO_PN0 */
-    GPIOTiva_PN_0 | GPIO_CFG_IN_PU,
-    /* X24015_GPIO_PN1 */
-    GPIOTiva_PN_1 | GPIO_CFG_IN_PU,
-    /* X24015_GPIO_PN2 */
-    GPIOTiva_PN_2 | GPIO_CFG_IN_PU,
-    /* X24015_GPIO_PN5 */
-    GPIOTiva_PN_5 | GPIO_CFG_IN_PU,
-    /* X24015_GPIO_PN3 */
-    GPIOTiva_PN_3 | GPIO_CFG_IN_PU,
-    /* X24015_GPIO_PN4 */
-    GPIOTiva_PN_4 | GPIO_CFG_IN_PU,
 
     /**** Output pins ****/
-    /* X24015_GPIO_PH3 */
-    GPIOTiva_PH_3 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
+    /* X24015_GPIO_PL2 */
+    GPIOTiva_PL_2 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+    /* X24015_GPIO_PL3 */
+    GPIOTiva_PL_3 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+    /* X24015_GPIO_PL4 */
+    GPIOTiva_PL_4 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+    /* X24015_GPIO_PL5 */
+    GPIOTiva_PL_5 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+    /* X24015_GPIO_PN0 */
+    GPIOTiva_PN_0 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+    /* X24015_GPIO_PN1 */
+    GPIOTiva_PN_1 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+    /* X24015_GPIO_PN2 */
+    GPIOTiva_PN_2 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+    /* X24015_GPIO_PN3 */
+    GPIOTiva_PN_3 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+    /* X24015_GPIO_PN4 */
+    GPIOTiva_PN_4 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+    /* X24015_GPIO_PN5 */
+    GPIOTiva_PN_5 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
     /* X24015_GPIO_PH2 */
-    GPIOTiva_PH_2 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
-    /* X24015_GPIO_PK7 */
-    //GPIOTiva_PK_7 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
+    GPIOTiva_PH_2 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
+    /* X24015_GPIO_PH3 */
+    GPIOTiva_PH_3 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
     /* X24015_GPIO_PM0 */
     GPIOTiva_PM_0 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
     /* X24015_GPIO_PM1 */
@@ -357,11 +353,10 @@ GPIO_PinConfig gpioPinConfigs[] = {
     GPIOTiva_PM_6 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
     /* X24015_GPIO_PM7 (RESET_BUS_OUT) */
     GPIOTiva_PM_7 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH,
-
-    /* X24015_GPIO_PP3 */
-    GPIOTiva_PP_3 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
     /* X24015_GPIO_PP2 */
     GPIOTiva_PP_2 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
+    /* X24015_GPIO_PP3 */
+    GPIOTiva_PP_3 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
     /* X24015_GPIO_PQ4 */
     GPIOTiva_PQ_4 | GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW,
 };
@@ -374,17 +369,17 @@ GPIO_PinConfig gpioPinConfigs[] = {
  *       reduce memory usage (if placed at end of gpioPinConfigs array).
  */
 GPIO_CallbackFxn gpioCallbackFunctions[] = {
-    NULL,   /* X24015_GPIO_PF4 */
-    NULL,   /* X24015_GPIO_PL5 */
-    NULL,   /* X24015_GPIO_PL4 */
-    NULL,   /* X24015_GPIO_PL2 */
-    NULL,   /* X24015_GPIO_PL3 */
-    NULL,   /* X24015_GPIO_PN0 */
-    NULL,   /* X24015_GPIO_PN1 */
-    NULL,   /* X24015_GPIO_PN2 */
-    NULL,   /* X24015_GPIO_PN5 */
-    NULL,   /* X24015_GPIO_PN3 */
-    NULL,   /* X24015_GPIO_PN4 */
+    NULL,   /* X24015_GPIO_xxx */
+    NULL,   /* X24015_GPIO_xxx */
+    NULL,   /* X24015_GPIO_xxx */
+    NULL,   /* X24015_GPIO_xxx */
+    NULL,   /* X24015_GPIO_xxx */
+    NULL,   /* X24015_GPIO_xxx */
+    NULL,   /* X24015_GPIO_xxx */
+    NULL,   /* X24015_GPIO_xxx */
+    NULL,   /* X24015_GPIO_xxx */
+    NULL,   /* X24015_GPIO_xxx */
+    NULL,   /* X24015_GPIO_xxx */
 };
 
 /* The device-specific GPIO_config structure */
@@ -401,33 +396,32 @@ const GPIOTiva_Config GPIOTiva_config = {
  */
 void X24015_initGPIO(void)
 {
-    // Enable pin PF4 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTF_BASE, GPIO_PIN_4);
-    // Enable pin PL5 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTL_BASE, GPIO_PIN_5);
-    // Enable pin PL4 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTL_BASE, GPIO_PIN_4);
-    // Enable pin PL2 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTL_BASE, GPIO_PIN_2);
-    // Enable pin PL3 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTL_BASE, GPIO_PIN_3);
-    // Enable pin PN0 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTN_BASE, GPIO_PIN_0);
-    // Enable pin PN1 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTN_BASE, GPIO_PIN_1);
-    // Enable pin PN2 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTN_BASE, GPIO_PIN_2);
-    // Enable pin PN5 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTN_BASE, GPIO_PIN_5);
-    // Enable pin PN3 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTN_BASE, GPIO_PIN_3);
-    // Enable pin PN4 for GPIOInput
-    GPIOPinTypeGPIOInput(GPIO_PORTN_BASE, GPIO_PIN_4);
+    // Enable pin PL2 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTL_BASE, GPIO_PIN_2);
+    // Enable pin PL3 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTL_BASE, GPIO_PIN_3);
+    // Enable pin PL4 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTL_BASE, GPIO_PIN_4);
+    // Enable pin PL5 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTL_BASE, GPIO_PIN_5);
 
-    // Enable pin PH3 for GPIOOutput
-    GPIOPinTypeGPIOOutput(GPIO_PORTH_BASE, GPIO_PIN_3);
+    // Enable pin PN0 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_0);
+    // Enable pin PN1 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_1);
+    // Enable pin PN2 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_2);
+    // Enable pin PN3 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_3);
+    // Enable pin PN4 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_4);
+    // Enable pin PN5 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_5);
+
     // Enable pin PH2 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTH_BASE, GPIO_PIN_2);
+    // Enable pin PH3 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTH_BASE, GPIO_PIN_3);
     // Enable pin PM0 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTM_BASE, GPIO_PIN_0);
     // Enable pin PM1 for GPIOOutput
@@ -441,10 +435,10 @@ void X24015_initGPIO(void)
     // Enable pin PM7 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTM_BASE, GPIO_PIN_7);
 
-    // Enable pin PP3 for GPIOOutput
-    GPIOPinTypeGPIOOutput(GPIO_PORTP_BASE, GPIO_PIN_3);
     // Enable pin PP2 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTP_BASE, GPIO_PIN_2);
+    // Enable pin PP3 for GPIOOutput
+    GPIOPinTypeGPIOOutput(GPIO_PORTP_BASE, GPIO_PIN_3);
     // Enable pin PQ4 for GPIOOutput
     GPIOPinTypeGPIOOutput(GPIO_PORTQ_BASE, GPIO_PIN_4);
 
