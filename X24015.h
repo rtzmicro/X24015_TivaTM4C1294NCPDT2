@@ -43,7 +43,7 @@
 #define MAGIC               0xCEB0FACE  /* magic number for EEPROM data */
 #define MAKEREV(v, r)       ((v << 16) | (r & 0xFFFF))
 
-#define ADC_MAX_CHANNELS    8
+//#define ADC_MAX_CHANNELS    8
 
 #define ADC_VREF            4.096f
 #define ADC_ERROR           0xFFFFFFFF
@@ -60,6 +60,7 @@ typedef struct _SYSDATA
     uint8_t         ui8SerialNumber[16];    /* 128-bit serial number      */
     uint8_t         ui8MAC[6];              /* 48-bit MAC from EPROM      */
     char            ipAddr[32];             /* IP address from DHCP       */
+    uint32_t        lastError;              /* ALM led blinks when set    */
     /* SPI bus peripherals */
     SPI_Handle      spi0;                   /* SPI-0 bus spans all slots  */
     SPI_Handle      spi2;                   /* SPI-2 bus spans all slots  */
@@ -72,13 +73,23 @@ typedef struct _SYSDATA
     I2C_Handle      i2c3;                   /* I2C3 MCP79410 RTC part     */
     /* Devices connected to peripherals */
     MCP79410_Handle handleRTC;              /* MCP79410 RTC part          */
-    AD7799_Handle   AD7799Handle1;
-    AD7799_Handle   AD7799Handle2;
+    //AD7799_Handle   AD7799Handle1;
+    //AD7799_Handle   AD7799Handle2;
     /* AD7799 ADC data */
     uint8_t         adcID;                  /* chip ID, 16 or 24 bit type */
     uint32_t        adcChannels;            /* num of ADC channels active */
-    uint32_t        adcData[ADC_MAX_CHANNELS];
+    uint32_t        adcData[16];
 } SYSDATA;
+
+/* Global System Error Codes for SYSDATA.lastError */
+
+typedef enum XSYSERR {
+    XSYSERR_NONE=0,                 /* no system errors detected */
+    XSYSERR_ADC_INIT,               /* an ADC board failed to initialize */
+    XSYSERR_GUID_SERMAC,            /* error read MAC & serial number */
+    /* max error count */
+    XSYSERR_LAST_ERROR
+} XSYSERR;
 
 //*****************************************************************************
 // SYSTEM CONFIG PARAMETERS STORED IN EPROM
@@ -99,5 +110,8 @@ typedef struct _SYSCONFIG
 
 int main(void);
 Void MainTaskFxn(UArg arg0, UArg arg1);
+
+void SetLastError(uint32_t error);
+uint32_t GetLastError(void);
 
 #endif /* __XMOD_24015_H */

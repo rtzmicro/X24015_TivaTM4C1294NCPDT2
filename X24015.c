@@ -81,16 +81,59 @@
 #include "CLITask.h"
 #include "usb_device.h"
 
-/* Global System Data */
-SYSCONFIG g_cfg;
-SYSDATA g_sys;
-FATFS FatFs;   /* Work area (filesystem object) for logical drive */
+/*** Global System Data ***/
 
-/* Static Function Prototypes */
+SYSCONFIG   g_cfg;      /* Global configuration data from EEPROM */
+SYSDATA     g_sys;      /* Global system variables and data storage */
+
+/* This defines the number of ADC cards loaded in the rack,
+ * the number of converters per card, and the number of channels
+ * channels in the system.
+ */
+#define ADC_NUM_CARDS               2
+#define ADC_CONVERTERS_PER_CARD     2
+#define ADC_CHANNELS_PER_CARD       (2 * ADC_CONVERTERS_PER_CARD)
+#define ADC_NUM_CONVERTERS          (ADC_NUM_CARDS * ADC_CONVERTERS_PER_CARD)
+#define ADC_NUM_CHANNELS            (ADC_NUM_CARDS * ADC_CHANNELS_PER_CARD)
+
+/* Each 24035 ADC card has two converters, each with it's own chip
+ * select, and provides a total of four ADC channels per card.
+ */
+typedef struct _ADC_CONVERTER {
+    AD7799_Handle   handle;
+    uint32_t        chipsel;
+} ADC_CONVERTER;
+
+/* This table contains the handle to each ADC channel allocated in
+ * the system along with the chip select for SPI3 to access the device.
+ */
+static ADC_CONVERTER g_adcConverter[ADC_NUM_CONVERTERS] = {
+    {
+        .handle  = NULL,
+        .chipsel = X24015_GPIO_PN0,     /* CARD #1, channels 1 & 2 */
+    },
+    {
+        .handle  = NULL,
+        .chipsel = X24015_GPIO_PN1,     /* CARD #1, channels 3 & 4 */
+    },
+    {
+        .handle  = NULL,
+        .chipsel = X24015_GPIO_PN2,     /* CARD #2, channels 5 & 6 */
+    },
+    {
+        .handle  = NULL,
+        .chipsel = X24015_GPIO_PL5,     /* CARD #2, channels 7 & 8 */
+    },
+};
+
+/*** Static Function Prototypes ***/
+
 static bool Init_Peripherals(void);
 static bool Init_Devices(void);
-static uint32_t ADCReadChannel(AD7799_Handle handle, uint32_t channel);
+static AD7799_Handle ADC_AllocConverter(SPI_Handle spiHandle, uint32_t gpioCSIndex);
+static uint32_t ADC_ReadChannel(AD7799_Handle handle, uint32_t channel);
 int ReadGUIDS(I2C_Handle handle, uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6]);;
+
 #if (DIV_CLOCK_ENABLED > 0)
 static void EnableClockDivOutput(uint32_t div);
 #endif
@@ -112,6 +155,8 @@ int main(void)
     memset(g_sys.ui8SerialNumber, 0xFF, 16);
     memset(g_sys.ui8MAC, 0xFF, 6);
     memset(g_sys.ipAddr, 0, 32);
+
+    g_sys.lastError = 0 ;
 
     ConfigInitDefaults(&g_cfg);
 
@@ -139,6 +184,20 @@ int main(void)
     BIOS_start();
 
     return (0);
+}
+
+//*****************************************************************************
+// Global error number interface functions.
+//*****************************************************************************
+
+uint32_t GetLastError(void)
+{
+    return g_sys.lastError;
+}
+
+void SetLastError(uint32_t error)
+{
+    g_sys.lastError = error;
 }
 
 //*****************************************************************************
@@ -233,49 +292,6 @@ int ReadGUIDS(I2C_Handle handle, uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6])
 //
 //*****************************************************************************
 
-uint32_t ADCReadChannel(AD7799_Handle handle, uint32_t channel)
-{
-    uint32_t i;
-    uint32_t data = ADC_ERROR;
-    uint8_t status = 0;
-
-    if (!handle)
-        return ADC_ERROR;
-
-    /* Select ADC Channel-1 */
-    AD7799_SetChannel(handle, channel);
-
-    /* Set the channel mode to start the single conversion */
-    AD7799_SetMode(handle, AD7799_MODE_SEL(AD7799_MODE_SINGLE) | AD7799_MODE_RATE(10));
-
-    for (i=0; i < 20; i++)
-    {
-        /* Check for ADC conversion complete */
-        if (AD7799_IsReady(handle))
-        {
-            /* Read ADC channel */
-            data = AD7799_ReadData(handle);
-
-            /* Read the current ADC status and check for error */
-            status = AD7799_ReadStatus(handle);
-
-            if (status & AD7799_STAT_ERR)
-                data = ADC_ERROR;
-
-            break;
-        }
-
-        Task_sleep(10);
-    }
-
-    return data;
-}
-
-//*****************************************************************************
-//
-//
-//*****************************************************************************
-
 bool Init_Peripherals(void)
 {
     SPI_Params  spiParams;
@@ -292,9 +308,7 @@ bool Init_Peripherals(void)
 
     if ((g_sys.i2c0 = I2C_open(Board_I2C0, &i2cParams)) == NULL)
     {
-        System_printf("Error: Unable to openI2C3 port\n");
-        System_flush();
-        return false;
+        System_abort("Error: Unable to openI2C3 port\n");
     }
 
     /* I2C-1 Bus */
@@ -307,9 +321,7 @@ bool Init_Peripherals(void)
 
     if ((g_sys.i2c1 = I2C_open(Board_I2C1, &i2cParams)) == NULL)
     {
-        System_printf("Error: Unable to openI2C1 port\n");
-        System_flush();
-        return false;
+        System_abort("Error: Unable to openI2C1 port\n");
     }
 
     /* I2C-2 Bus */
@@ -322,9 +334,7 @@ bool Init_Peripherals(void)
 
     if ((g_sys.i2c2 = I2C_open(Board_I2C2, &i2cParams)) == NULL)
     {
-        System_printf("Error: Unable to openI2C2 port\n");
-        System_flush();
-        return false;
+        System_abort("Error: Unable to openI2C2 port\n");
     }
 
     /* I2C-3 Bus */
@@ -337,9 +347,7 @@ bool Init_Peripherals(void)
 
     if ((g_sys.i2c3 = I2C_open(Board_I2C3, &i2cParams)) == NULL)
     {
-        System_printf("Error: Unable to openI2C3 port\n");
-        System_flush();
-        return false;
+        System_abort("Error: Unable to openI2C3 port\n");
     }
 
     /* SPI-0 bus */
@@ -355,9 +363,7 @@ bool Init_Peripherals(void)
 
     if ((g_sys.spi0 = SPI_open(Board_SPI0, &spiParams)) == NULL)
     {
-        System_printf("Error: Unable to open SPI2 port\n");
-        System_flush();
-        return false;
+        System_abort("Error: Unable to open SPI2 port\n");
     }
 
     /* SPI-2 bus */
@@ -373,9 +379,7 @@ bool Init_Peripherals(void)
 
     if ((g_sys.spi2 = SPI_open(Board_SPI2, &spiParams)) == NULL)
     {
-        System_printf("Error: Unable to open SPI2 port\n");
-        System_flush();
-        return false;
+        System_abort("Error: Unable to open SPI2 port\n");
     }
 
     /* SPI-3 bus */
@@ -391,9 +395,7 @@ bool Init_Peripherals(void)
 
     if ((g_sys.spi3 = SPI_open(Board_SPI3, &spiParams)) == NULL)
     {
-        System_printf("Error: Unable to open SPI3 port\n");
-        System_flush();
-        return false;
+        System_abort("Error: Unable to open SPI3 port\n");
     }
 
     /* SD SPI bus */
@@ -404,9 +406,7 @@ bool Init_Peripherals(void)
 
     if ((g_sys.spiSD = SDSPI_open(X24015_SDSPI0, SD_DRIVE_NUM, &sdParams)) == NULL)
     {
-        System_printf("Error: Unable to open SD SPI port\n");
-        System_flush();
-        return false;
+        System_abort("Error: Unable to open SD SPI port\n");
     }
 
     return true;
@@ -419,6 +419,8 @@ bool Init_Peripherals(void)
 
 bool Init_Devices(void)
 {
+    size_t i;
+
     /* Enable the LED's during startup up */
     GPIO_write(Board_LED_ACT, Board_LED_ON);
     GPIO_write(Board_LED_ALM, Board_LED_OFF);
@@ -449,54 +451,18 @@ bool Init_Devices(void)
         System_abort("MCP79410_create failed\n");
     }
 
-    /*
-     * Create and Initialize ADC #1 Channels
+    /* Create and Initialize ADC Channels. Each card contains two ADC
+     * converters with separate chip selects for each. The chip selects
+     * must be predefined in the channel table. All of the ADC converters
+     * are mapped on SPI-3 with chip selects for each.
      */
 
-    if ((g_sys.AD7799Handle1 = AD7799_create(g_sys.spi3, X24015_GPIO_PN0, NULL)) == NULL)
-    {
-        System_abort("AD7799_create failed\n");
-    }
+    //g_adcConverter[0].handle = ADC_AllocInit(g_sys.spi3, g_adcConverter[0].chipsel);
+    //g_adcConverter[1].handle = ADC_AllocInit(g_sys.spi3, g_adcConverter[1].chipsel);
 
-    AD7799_Reset(g_sys.AD7799Handle1);
-
-    if ((g_sys.adcID = AD7799_Init(g_sys.AD7799Handle1)) == 0)
+    for (i=0; i < ADC_NUM_CONVERTERS; i++)
     {
-        System_printf("AD7799_Init(1) failed\n");
-    }
-    else
-    {
-        /* Set gain to 1 */
-        AD7799_SetGain(g_sys.AD7799Handle1, AD7799_GAIN_1);
-        /* Set the reference detect */
-        AD7799_SetRefDetect(g_sys.AD7799Handle1, AD7799_REFDET_ENA);
-        /* Set for unipolar data reading */
-        AD7799_SetUnipolar(g_sys.AD7799Handle1, AD7799_UNIPOLAR_ENA);
-    }
-
-    /*
-     * Create and Initialize ADC #2 Channels
-     */
-
-    if ((g_sys.AD7799Handle2 = AD7799_create(g_sys.spi3, X24015_GPIO_PN1, NULL)) == NULL)
-    {
-        System_abort("AD7799_create failed\n");
-    }
-
-    AD7799_Reset(g_sys.AD7799Handle2);
-
-    if ((g_sys.adcID = AD7799_Init(g_sys.AD7799Handle2)) == 0)
-    {
-        System_printf("AD7799_Init(2) failed\n");
-    }
-    else
-    {
-        /* Set gain to 1 */
-        AD7799_SetGain(g_sys.AD7799Handle2, AD7799_GAIN_1);
-        /* Set the reference detect */
-        AD7799_SetRefDetect(g_sys.AD7799Handle2, AD7799_REFDET_ENA);
-        /* Set for unipolar data reading */
-        AD7799_SetUnipolar(g_sys.AD7799Handle2, AD7799_UNIPOLAR_ENA);
+        g_adcConverter[i].handle = ADC_AllocConverter(g_sys.spi3, g_adcConverter[i].chipsel);
     }
 
     /* Prepare to initialize EMAC layer.
@@ -506,6 +472,7 @@ bool Init_Devices(void)
     if (!ReadGUIDS(g_sys.i2c0, g_sys.ui8SerialNumber, g_sys.ui8MAC))
     {
         System_printf("MAC & Serial# Read Failed!\n");
+        SetLastError(XSYSERR_GUID_SERMAC);
     }
 
     System_flush();
@@ -527,14 +494,90 @@ bool Init_Devices(void)
 }
 
 //*****************************************************************************
+// This allocates an ADC context for communication and initializes the
+// the ADC converter for use.
+//*****************************************************************************
+
+AD7799_Handle ADC_AllocConverter(SPI_Handle spiHandle, uint32_t gpioCSIndex)
+{
+    AD7799_Handle handle;
+
+    if ((handle = AD7799_create(spiHandle, gpioCSIndex, NULL)) != NULL)
+    {
+        AD7799_Reset(handle);
+
+        if ((g_sys.adcID = AD7799_Init(handle)) == 0)
+        {
+            System_printf("AD7799_Init(2) failed\n");
+
+            SetLastError(XSYSERR_ADC_INIT);
+        }
+        else
+        {
+            /* Set gain to 1 */
+            AD7799_SetGain(handle, AD7799_GAIN_1);
+
+            /* Set the reference detect */
+            AD7799_SetRefDetect(handle, AD7799_REFDET_ENA);
+
+            /* Set for unipolar data reading */
+            AD7799_SetUnipolar(handle, AD7799_UNIPOLAR_ENA);
+        }
+    }
+
+    return handle;
+}
+
+//*****************************************************************************
+//
+//
+//*****************************************************************************
+
+uint32_t ADC_ReadChannel(AD7799_Handle handle, uint32_t channel)
+{
+    uint32_t i;
+    uint32_t data = ADC_ERROR;
+    uint8_t status = 0;
+
+    if (!handle)
+        return ADC_ERROR;
+
+    /* Select ADC Channel-1 */
+    AD7799_SetChannel(handle, channel);
+
+    /* Set the channel mode to start the single conversion */
+    AD7799_SetMode(handle, AD7799_MODE_SEL(AD7799_MODE_SINGLE) | AD7799_MODE_RATE(10));
+
+    for (i=0; i < 20; i++)
+    {
+        /* Check for ADC conversion complete */
+        if (AD7799_IsReady(handle))
+        {
+            /* Read ADC channel */
+            data = AD7799_ReadData(handle);
+
+            /* Get current ADC status and check for error */
+            status = AD7799_ReadStatus(handle);
+
+            //if (status & AD7799_STAT_ERR)
+            //    data = ADC_ERROR;
+
+            break;
+        }
+
+        Task_sleep(10);
+    }
+
+    return data;
+}
+
+//*****************************************************************************
 //
 //
 //*****************************************************************************
 
 Void MainTaskFxn(UArg arg0, UArg arg1)
 {
-    int count = 0;
-
     //Error_Block eb;
 	//Task_Params taskParams;
 
@@ -558,33 +601,33 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
 
     while (true)
     {
-        if (count++ > 10)
-        {
-            count = 0;
-            //GPIO_toggle(Board_LED_ALM);
-        }
+        size_t i;
 
+        /* Turn on ALM LED if system error detected */
+        GPIO_write(Board_LED_ALM, GetLastError() ? PIN_HIGH : PIN_LOW);
+
+        /* If the ADC's were found and active, then poll each ADC for data */
         if (g_sys.adcID)
         {
-            /* Read ADC level for CHAN-1 */
-            g_sys.adcData[0] = ADCReadChannel(g_sys.AD7799Handle1, 0);
+            size_t channel = 0;
 
-            /* Read ADC level for CHAN-2 */
-            g_sys.adcData[1] = ADCReadChannel(g_sys.AD7799Handle1, 1);
-
-            /* Read ADC level for CHAN-3 */
-            g_sys.adcData[2] = ADCReadChannel(g_sys.AD7799Handle2, 0);
-
-            /* Read ADC level for CHAN-4 */
-            g_sys.adcData[3] = ADCReadChannel(g_sys.AD7799Handle2, 1);
+            for (i=0; i < ADC_NUM_CONVERTERS; i++)
+            {
+                /* Read two channels of data from a each converter on card */
+                g_sys.adcData[channel++] = ADC_ReadChannel(g_adcConverter[i].handle, 0);
+                g_sys.adcData[channel++] = ADC_ReadChannel(g_adcConverter[i].handle, 1);
+            }
         }
 
-        //System_printf("chan1=%x chan2=%x\n", g_sys.dacLevel[0], g_sys.dacLevel[1]);
-        //System_flush();
+        for (i=0; i < ADC_NUM_CHANNELS; i++)
+        {
+            System_printf("CH(%02d)=%x\n", i, g_sys.adcData[i]);
+            System_flush();
+        }
 
         GPIO_toggle(Board_LED_ACT);
 
-        Task_sleep(500);
+        //Task_sleep(500);
     }
 }
 
