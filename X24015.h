@@ -84,7 +84,7 @@ typedef struct _SYSDATA
 /* Global System Error Codes for SYSDATA.lastError */
 
 typedef enum XSYSERR {
-    XSYSERR_NONE=0,                 /* no system errors detected */
+    XSYSERR_SUCCESS=0,              /* no system errors detected */
     XSYSERR_ADC_INIT,               /* an ADC board failed to initialize */
     XSYSERR_GUID_SERMAC,            /* error read MAC & serial number */
     /* max error count */

@@ -84,6 +84,7 @@
 #include "CLITask.h"
 #include "Board.h"
 #include "MCP79410.h"
+#include "xmodem.h"
 
 //*****************************************************************************
 // Type Definitions
@@ -111,6 +112,7 @@ MK_CMD(time);
 MK_CMD(date);
 MK_CMD(dir);
 MK_CMD(cd);
+MK_CMD(del);
 MK_CMD(xmdm);
 
 /* The dispatch table */
@@ -127,6 +129,7 @@ static cmd_t dispatch[] = {
     CMD(date, "Display current date"),
     CMD(dir, "List directory"),
     CMD(cd, "Change directory"),
+    CMD(del, "Delete a file"),
     CMD(xmdm, "Send/Receive File"),
 };
 
@@ -162,9 +165,6 @@ static bool IsClockRunning(void);
 static char *FSErrorString(int errno);
 static FRESULT dir_list(char* path);
 
-/*** External Function Prototypes ***/
-extern int xmodem_receive(FIL* fp);
-
 /*** External Data Items ***/
 extern SYSDATA g_sys;
 extern SYSCONFIG g_cfg;
@@ -181,15 +181,16 @@ int CLI_init(void)
 
     uartParams.readMode       = UART_MODE_BLOCKING;
     uartParams.writeMode      = UART_MODE_BLOCKING;
-    uartParams.readTimeout    = 5000;                   // 5 second read timeout
+    uartParams.readTimeout    = 1000;                   // 5 second read timeout
     uartParams.writeTimeout   = BIOS_WAIT_FOREVER;
     uartParams.readCallback   = NULL;
     uartParams.writeCallback  = NULL;
     uartParams.readReturnMode = UART_RETURN_FULL;
-    uartParams.writeDataMode  = UART_DATA_TEXT;
+    uartParams.writeDataMode  = UART_DATA_BINARY;       //UART_DATA_TEXT;
     uartParams.readDataMode   = UART_DATA_BINARY;
     uartParams.readEcho       = UART_ECHO_OFF;
     uartParams.baudRate       = 115200;
+    uartParams.dataLength     = UART_LEN_8;
     uartParams.stopBits       = UART_STOP_ONE;
     uartParams.parityType     = UART_PAR_NONE;
 
@@ -227,11 +228,6 @@ Bool CLI_startup(void)
 //
 //*****************************************************************************
 
-void CLI_putc(int ch)
-{
-    UART_write(s_handleUart, &ch, 1);
-}
-
 int CLI_getc(void)
 {
     int ch;
@@ -243,10 +239,25 @@ int CLI_getc(void)
     return -1;
 }
 
+void CLI_putc(int ch)
+{
+    if (ch == '\n')
+    {
+        ch = '\r';
+        UART_write(s_handleUart, &ch, 1);
+        ch = '\n';
+    }
+
+    UART_write(s_handleUart, &ch, 1);
+}
+
 void CLI_puts(char* s)
 {
+    int i;
     int l = strlen(s);
-    UART_write(s_handleUart, s, l);
+
+    for (i=0; i < l; i++)
+        CLI_putc(*s++);
 }
 
 void CLI_printf(const char *fmt, ...)
@@ -256,12 +267,11 @@ void CLI_printf(const char *fmt, ...)
     va_start(arg, fmt);
     vsnprintf(buf, sizeof(buf)-1, fmt, arg);
     va_end(arg);
-    UART_write(s_handleUart, buf, strlen(buf));
+    CLI_puts(buf);
 }
 
 void CLI_prompt(void)
 {
-    CLI_putc(CRET);
     CLI_putc(LF);
     CLI_putc(s_drive);
     CLI_putc(':');
@@ -303,7 +313,6 @@ Void CLITaskFxn(UArg arg0, UArg arg1)
             {
                 if (cnt)
                 {
-                    CLI_putc(CRET);
                     CLI_putc(LF);
 
                     /* save command for previous recall */
@@ -454,12 +463,13 @@ FRESULT dir_list(char* path)
 {
     FRESULT res;
     DIR dir;
+    static char buf[_MAX_LFN];
     static FILINFO fno;
 
     /* Open the directory */
     if ((res = f_opendir(&dir, path)) != FR_OK)
     {
-        CLI_printf("Error: %s\n", FSErrorString(res));
+        CLI_printf("%s\n", FSErrorString(res));
     }
     else
     {
@@ -476,9 +486,51 @@ FRESULT dir_list(char* path)
                 continue;
 
             if (fno.fattrib & AM_DIR)
-                CLI_printf("<DIR>\t%s\n", fno.fname);
+                sprintf(buf, "%-15s", "<DIR>");
             else
-                CLI_printf("     \t%s\n", fno.fname);
+                sprintf(buf, "%15u", fno.fsize);
+
+            /* 16-Bit Date Bits Format
+             * YYYYYYYMMMMDDDDD
+             *
+             * bit15:9      Year origin from 1980 (0..127)
+             * bit8:5       Month (1..12)
+             * bit4:0       Day (1..31)
+             */
+
+            CLI_printf("%02u/%02u/%04u  ",
+                       (fno.fdate >> 0) & 0x1F,
+                       (fno.fdate >> 5) & 0x0F,
+                      ((fno.fdate >> 9) & 0x7F) + 1980);
+
+            /* 16-Bit Time Format
+             * HHHHHMMMMMMSSSSS
+             *
+             * bit15:11     Hour (0..23)
+             * bit10:5      Minute (0..59)
+             * bit4:0       Second / 2 (0..29)
+             */
+
+            uint32_t hour = (fno.ftime >> 11) & 0x1F;
+
+            bool pm = false;
+
+            if (hour > 12)
+            {
+                hour = hour - 12;
+                pm = true;
+            }
+
+            CLI_printf("%02u:%02u:%02u %s",
+                       hour,
+                       (fno.ftime >> 5) & 0x3F,
+                      ((fno.ftime >> 0) & 0x1F) >> 1,
+                       pm ? "PM" : "AM");
+
+            if (fno.lfname)
+                CLI_printf("    %s %s\n", buf, fno.lfname);
+            else
+                CLI_printf("    %s %s\n", buf, fno.fname);
         }
 
         f_closedir(&dir);
@@ -692,7 +744,7 @@ void cmd_dir(int argc, char *argv[])
 
     if (g_sys.i2c2 == NULL)
     {
-        CLI_printf("ERROR: no SD driver open\n");
+        CLI_printf("SD driver not open\n");
         return;
     }
     else
@@ -709,6 +761,17 @@ void cmd_dir(int argc, char *argv[])
 
         dir_list(buff);
     }
+}
+
+void cmd_del(int argc, char *argv[])
+{
+    FRESULT res;
+
+    if ((res = f_unlink(argv[0])) != FR_OK)
+    {
+        CLI_printf("%s", FSErrorString(res));
+    }
+    CLI_putc('\n');
 }
 
 void cmd_xmdm(int argc, char *argv[])
@@ -730,9 +793,9 @@ void cmd_xmdm(int argc, char *argv[])
         if ((res = f_open(&fp, argv[1], FA_WRITE|FA_CREATE_NEW|FA_CREATE_ALWAYS)) == FR_OK)
         {
             CLI_printf("XModem Waiting...\n");
-            xmodem_receive(&fp);
+            xmodem_receive(s_handleUart, &fp);
             f_close(&fp);
-            CLI_printf("\n");
+            CLI_printf("\nXModem Done...\n");
         }
         else
         {
@@ -749,7 +812,7 @@ void cmd_xmdm(int argc, char *argv[])
         }
         else
         {
-            CLI_printf("Error: %s\n", FSErrorString(res));
+            CLI_printf("%s\n", FSErrorString(res));
         }
     }
     else

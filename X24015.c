@@ -156,7 +156,7 @@ int main(void)
     memset(g_sys.ui8MAC, 0xFF, 6);
     memset(g_sys.ipAddr, 0, 32);
 
-    g_sys.lastError = 0 ;
+    g_sys.lastError = 0;
 
     ConfigInitDefaults(&g_cfg);
 
@@ -494,8 +494,8 @@ bool Init_Devices(void)
 }
 
 //*****************************************************************************
-// This allocates an ADC context for communication and initializes the
-// the ADC converter for use.
+// This allocates an ADC context for communication and initializes the ADC
+// converter for use. This is called for each ADC in the system (two per card).
 //*****************************************************************************
 
 AD7799_Handle ADC_AllocConverter(SPI_Handle spiHandle, uint32_t gpioCSIndex)
@@ -604,7 +604,7 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
         size_t i;
 
         /* Turn on ALM LED if system error detected */
-        GPIO_write(Board_LED_ALM, GetLastError() ? PIN_HIGH : PIN_LOW);
+        GPIO_write(Board_LED_ALM, (GetLastError() != XSYSERR_SUCCESS) ? PIN_HIGH : PIN_LOW);
 
         /* If the ADC's were found and active, then poll each ADC for data */
         if (g_sys.adcID)
@@ -618,16 +618,16 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
                 g_sys.adcData[channel++] = ADC_ReadChannel(g_adcConverter[i].handle, 1);
             }
         }
-
+#if 0
         for (i=0; i < ADC_NUM_CHANNELS; i++)
         {
             System_printf("CH(%02d)=%x\n", i, g_sys.adcData[i]);
             System_flush();
         }
-
+#endif
         GPIO_toggle(Board_LED_ACT);
 
-        //Task_sleep(500);
+        Task_sleep(100);
     }
 }
 
