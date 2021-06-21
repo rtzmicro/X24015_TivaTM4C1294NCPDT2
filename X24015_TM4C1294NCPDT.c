@@ -965,7 +965,7 @@ const UARTTiva_HWAttrs uartTivaHWAttrs[X24015_UARTCOUNT] = {
         .baseAddr    = UART0_BASE,
         .intNum      = INT_UART0,
         .intPriority = (~0),
-        .flowControl = UART_FLOWCONTROL_NONE,
+        .flowControl = UART_FLOWCONTROL_TX|UART_FLOWCONTROL_RX,
         .ringBufPtr  = uartTivaRingBuffer[0],
         .ringBufSize = sizeof(uartTivaRingBuffer[0])
     },

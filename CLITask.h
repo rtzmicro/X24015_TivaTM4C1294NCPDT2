@@ -49,6 +49,7 @@ Bool CLI_startup(void);
 int CLI_getc(void);
 void CLI_putc(int ch);
 void CLI_puts(char* s);
+void CLI_crlf(void);
 void CLI_printf(const char *fmt, ...);
 void CLI_prompt(void);
 

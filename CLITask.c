@@ -112,7 +112,9 @@ MK_CMD(time);
 MK_CMD(date);
 MK_CMD(dir);
 MK_CMD(cd);
-MK_CMD(del);
+MK_CMD(cwd);
+MK_CMD(mkdir);
+MK_CMD(unlink);
 MK_CMD(xmdm);
 
 /* The dispatch table */
@@ -129,7 +131,9 @@ static cmd_t dispatch[] = {
     CMD(date, "Display current date"),
     CMD(dir, "List directory"),
     CMD(cd, "Change directory"),
-    CMD(del, "Delete a file"),
+    CMD(cwd, "Display current working dir"),
+    CMD(mkdir, "Make a subdir"),
+    CMD(unlink, "Remove a file or subdir"),
     CMD(xmdm, "Send/Receive File"),
 };
 
@@ -156,14 +160,15 @@ static char  s_args[MAX_ARGS][MAX_ARG_LEN];
 
 /* Current Working Directory */
 static char s_cwd[MAX_PATH] = "\\";
-static char s_drive = '0';
 
 /*** Static Function Prototypes ***/
 static int parse_args(char *buf);
 static void parse_cmd(char *buf);
 static bool IsClockRunning(void);
 static char *FSErrorString(int errno);
-static FRESULT dir_list(char* path);
+static FRESULT _dirlist(char* path);
+static char* _getcwd(void);
+static void _perror(FRESULT res);
 
 /*** External Data Items ***/
 extern SYSDATA g_sys;
@@ -181,7 +186,7 @@ int CLI_init(void)
 
     uartParams.readMode       = UART_MODE_BLOCKING;
     uartParams.writeMode      = UART_MODE_BLOCKING;
-    uartParams.readTimeout    = 1000;                   // 5 second read timeout
+    uartParams.readTimeout    = 1000;                   // 1 second read timeout
     uartParams.writeTimeout   = BIOS_WAIT_FOREVER;
     uartParams.readCallback   = NULL;
     uartParams.writeCallback  = NULL;
@@ -251,6 +256,11 @@ void CLI_putc(int ch)
     UART_write(s_handleUart, &ch, 1);
 }
 
+void CLI_crlf(void)
+{
+    CLI_putc('\n');
+}
+
 void CLI_puts(char* s)
 {
     int i;
@@ -273,8 +283,6 @@ void CLI_printf(const char *fmt, ...)
 void CLI_prompt(void)
 {
     CLI_putc(LF);
-    CLI_putc(s_drive);
-    CLI_putc(':');
     CLI_puts(s_cwd);
     CLI_putc('>');
 }
@@ -300,8 +308,15 @@ Void CLITaskFxn(UArg arg0, UArg arg1)
     uint8_t ch;
     int cnt = 0;
 
+    /* Set root directory intially */
+    f_chdir("0://.");
+
+    /* Get the current working directory of the SD drive */
+    _getcwd();
+
     CLI_home();
     CLI_about();
+    CLI_puts("\nEnter 'help' to view a list valid commands\n");
     CLI_prompt();
 
     while (true)
@@ -314,13 +329,10 @@ Void CLITaskFxn(UArg arg0, UArg arg1)
                 if (cnt)
                 {
                     CLI_putc(LF);
-
                     /* save command for previous recall */
                     strcpy(s_cmdprev, s_cmdbuf);
-
                     /* parse new command and execute */
                     parse_cmd(s_cmdbuf);
-
                     /* reset the command buffer */
                     s_cmdbuf[0] = 0;
                     cnt = 0;
@@ -459,7 +471,7 @@ char *FSErrorString(int errno)
     return FSErrorString[errno];
 }
 
-FRESULT dir_list(char* path)
+FRESULT _dirlist(char* path)
 {
     FRESULT res;
     DIR dir;
@@ -499,8 +511,8 @@ FRESULT dir_list(char* path)
              */
 
             CLI_printf("%02u/%02u/%04u  ",
-                       (fno.fdate >> 0) & 0x1F,
                        (fno.fdate >> 5) & 0x0F,
+                       (fno.fdate >> 0) & 0x1F,
                       ((fno.fdate >> 9) & 0x7F) + 1980);
 
             /* 16-Bit Time Format
@@ -537,6 +549,27 @@ FRESULT dir_list(char* path)
     }
 
     return res;
+}
+
+/* Update and return the current working directory */
+
+char* _getcwd(void)
+{
+    FRESULT res;
+
+    res = f_getcwd(s_cwd, sizeof(s_cwd)-1);
+
+    if (res != FR_OK)
+    {
+        s_cwd[0] = 0;
+    }
+
+    return s_cwd;
+}
+
+void _perror(FRESULT res)
+{
+    CLI_printf("%s\n", FSErrorString(res));
 }
 
 //*****************************************************************************
@@ -677,113 +710,109 @@ void cmd_date(int argc, char *argv[])
     }
 }
 
-void cmd_cd(int argc, char *argv[])
-{
-    char *p;
-    char *cmd = argv[0];
-    char cwd[MAX_PATH];
-    FRESULT res;
-
-    if (argc)
-    {
-        strncpy(cwd, s_cwd, MAX_PATH-1);
-        cwd[MAX_PATH-1] = 0;
-
-        if (strlen(argv[0]) > 0)
-        {
-            if (strcmp(cmd, "..") == 0)
-            {
-                if (strlen(cwd) > 1)
-                {
-                    /* Search reverse for last slash */
-                    if ((p = strrchr(cwd, '\\')) != NULL)
-                    {
-                        /* If we're at root, terminate after root slash.
-                         * Otherwise, terminate at the slash to trim path.
-                         */
-                        if (p == &cwd[0])
-                            *(p+1) = 0;
-                        else
-                            *p = 0;
-
-                        strcpy(s_cwd, cwd);
-                    }
-                }
-            }
-            else
-            {
-                if (*cmd == '\\')
-                {
-                    strcpy(cwd, cmd);
-                }
-                else
-                {
-                    if (strlen(cwd) >  1)
-                        strcat(cwd, "\\");
-
-                    strcat(cwd, cmd);
-                }
-
-                strcpy(s_cwd, cwd);
-            }
-        }
-    }
-
-    /* Attempt to change to the directory path */
-    res = f_chdir(s_cwd);
-
-    if (res == FR_OK)
-        CLI_printf("%c:%s\n", s_drive, s_cwd);
-    else
-        CLI_puts("Cannot find path specified.\n");
-}
+//*****************************************************************************
+// Directory and File Operations
+//*****************************************************************************
 
 void cmd_dir(int argc, char *argv[])
 {
-    static char buff[MAX_PATH];
+    static char buf[MAX_PATH];
 
-    if (g_sys.i2c2 == NULL)
+    CLI_printf("\n Directory of %s\n\n", s_cwd);
+
+    strcpy(buf, ".");
+
+    if (argc >= 1)
     {
-        CLI_printf("SD driver not open\n");
-        return;
+        strncpy(buf, argv[0], sizeof(buf)-1);
+        buf[sizeof(buf)-1] = 0;
     }
-    else
-    {
-        CLI_printf("\n Directory of %c:%s\n\n", s_drive, s_cwd);
 
-        strcpy(buff, "/");
-
-        if (argc >= 1)
-        {
-            strncpy(buff, argv[0], sizeof(buff)-1);
-            buff[sizeof(buff)-1] = 0;
-        }
-
-        dir_list(buff);
-    }
+    _dirlist(buf);
 }
 
-void cmd_del(int argc, char *argv[])
+void cmd_cwd(int argc, char *argv[])
+{
+    CLI_printf("%s\n", _getcwd());
+}
+
+void cmd_mkdir(int argc, char *argv[])
 {
     FRESULT res;
 
-    if ((res = f_unlink(argv[0])) != FR_OK)
+    if (argc == 1)
     {
-        CLI_printf("%s", FSErrorString(res));
+        /* Attempt to make a directory */
+        res = f_mkdir(argv[0]);
+
+        if (res == FR_OK)
+            CLI_printf("%s\n", argv[0]);
+        else
+            _perror(res);
     }
-    CLI_putc('\n');
+}
+
+void cmd_unlink(int argc, char *argv[])
+{
+    FRESULT res;
+
+    if (argc == 1)
+    {
+        /* Attempt to make a directory */
+        res = f_unlink(argv[0]);
+
+        if (res == FR_OK)
+        {
+            CLI_puts("Removed ");
+            CLI_puts(argv[0]);
+            CLI_putc('\n');
+        }
+        else
+        {
+            _perror(res);
+        }
+    }
+}
+
+void cmd_cd(int argc, char *argv[])
+{
+    FRESULT res;
+
+    if (argc == 1)
+    {
+        /* Attempt to change to the directory path */
+        res = f_chdir(argv[0]);
+
+        _getcwd();
+
+        if (res == FR_OK)
+            CLI_printf("%s\n", s_cwd);
+        else
+            _perror(res);
+    }
+    else
+    {
+        _getcwd();
+
+        CLI_printf("%s\n", s_cwd);
+    }
 }
 
 void cmd_xmdm(int argc, char *argv[])
 {
+    int rc = 0;
     FIL fp;
     FRESULT res = FR_OK;
 
+    char *eraseEOL = VT100_ERASE_EOL;
+
+    CLI_putc('\n');
+
     if (argc != 2)
     {
-        CLI_printf("Invalid Arguments\n");
-        CLI_printf("xmdm s {filename} [sends a file]\n");
-        CLI_printf("xmdm r {filename} [receives a file]\n");
+        CLI_printf("Usage:\n\n");
+        CLI_printf("xmdm s {filename}\t[sends a file]\n");
+        CLI_printf("xmdm r {filename}\t[receives a file]\n");
         return;
     }
 
@@ -792,14 +821,28 @@ void cmd_xmdm(int argc, char *argv[])
         /* Receive a file */
         if ((res = f_open(&fp, argv[1], FA_WRITE|FA_CREATE_NEW|FA_CREATE_ALWAYS)) == FR_OK)
         {
-            CLI_printf("XModem Waiting...\n");
-            xmodem_receive(s_handleUart, &fp);
+            CLI_printf("XMODEM Receive Ready\n");
+
+            /* Receive file via XMODEM */
+            rc = xmodem_receive(s_handleUart, &fp);
+
             f_close(&fp);
-            CLI_printf("\nXModem Done...\n");
+
+            if (rc != XMODEM_SUCCESS)
+            {
+                /* Delete the file, it's not valid */
+                f_unlink(argv[1]);
+
+                CLI_printf("\r%s\rReceive Error %d\n", eraseEOL, rc);
+            }
+            else
+            {
+                CLI_printf("\r%s\rReceive Complete\n", eraseEOL);
+            }
         }
         else
         {
-            CLI_printf("Error: %s\n", FSErrorString(res));
+            _perror(res);
         }
     }
     else if (toupper(*argv[0]) == 'S')
@@ -807,12 +850,25 @@ void cmd_xmdm(int argc, char *argv[])
         /* Send a file */
         if ((res = f_open(&fp, argv[1], FA_READ)) == FR_OK)
         {
-            CLI_printf("Not Implemented!\n");
+            CLI_printf("XMODEM Send Ready\n");
+
+            /* Send file via XMODEM */
+            rc = xmodem_send(s_handleUart, &fp);
+
             f_close(&fp);
+
+            if (rc != XMODEM_SUCCESS)
+            {
+                CLI_printf("\r%s\rSend Error %d\n", eraseEOL, rc);
+            }
+            else
+            {
+                CLI_printf("\r%s\rSend Complete\n", eraseEOL);
+            }
         }
         else
         {
-            CLI_printf("%s\n", FSErrorString(res));
+            _perror(res);
         }
     }
     else

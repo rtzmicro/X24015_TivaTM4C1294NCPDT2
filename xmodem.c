@@ -82,12 +82,14 @@
 #include <ti/sysbios/hal/Seconds.h>
 
 #include "xmodem.h"
+#include "board.h"
 
 /* Various definitions. */
 #define PKT_SIZE    128
 #define PKT_SIZE_1K 1024
 
 #define NUM_TRIES   21
+#define DEBUG       0
 
 /* ASCII codes used in the protocol. */
 #define NUL         0x00
@@ -115,39 +117,53 @@ uint32_t            xmodem_size;
 static void uart_putc(UART_Handle handle, uint8_t ch)
 {
     UART_write(handle, &ch, 1);
-    Task_sleep(100);
 }
 
 static void uart_flush(UART_Handle handle)
 {
-    int ch;
-    while (UART_read(handle, &ch, 1) == UART_ERROR);
+    int n;
+    uint8_t ch;
+
+    while (1)
+    {
+        n = UART_read(handle, &ch, 1);
+
+        if (n == UART_ERROR)
+            break;
+    }
 }
 
 static int uart_getc(UART_Handle handle, int secs)
 {
-    int ch;
+    int i;
+    uint8_t ch;
 
-    while (secs)
+    for (i=0; i < secs; i++)
     {
         if (UART_read(handle, &ch, 1) == 1)
-            return ch;
-
-        --secs;
+        {
+            return (int)ch & 0xff;
+        }
     }
 
     return -1;
 }
 
-/* Update the CRC16 value for the given byte. */
-static unsigned short
-xmodem_crc(unsigned short crc, unsigned char c)
+/******************************************************************************
+ * XMODEM Helper Functions
+ ******************************************************************************/
+
+/*
+ * Update the CRC16 value for the given byte.
+ */
+
+static uint16_t xmodem_crc(uint16_t crc, uint8_t c)
 {
     register int i;
 
-    crc = crc ^ ((unsigned short)c << 8);
+    crc = crc ^ ((uint16_t)c << 8);
 
-    for (i = 0; i < 8; i++)
+    for (i=0; i < 8; i++)
     {
         if (crc & 0x8000)
             crc = (crc << 1) ^ 0x1021;
@@ -155,41 +171,13 @@ xmodem_crc(unsigned short crc, unsigned char c)
             crc <<= 1;
     }
 
-    return(crc);
+    return crc;
 }
-
-#if USE_YMODEM
-/*
- * Grab useful information from the YMODEM info block.
- */
-static int
-xmodem_info(char *bufp)
-{
-    char *p = bufp;
-    char *q;
-
-    /* Check if we have a NULL file name. */
-    if (*p == '\0') return(1);
-
-    /* Grab file name. */
-    q = xmodem_name;
-    while (*p != '\0')
-	*q++ = *p++;
-    *q = '\0';
-    p++;
-
-    /* Grab file size. */
-    q = p;
-    while (*p != '\0') p++;
-    xmodem_size = atol(q);
-
-    return(0);
-}
-#endif
 
 /*
  * Write a block of data to a file stream.
  */
+
 static FRESULT xmodem_write_block(FIL* fp, uint8_t *buf, int32_t size)
 {
     uint32_t bytesToWrite = size;
@@ -214,30 +202,30 @@ static FRESULT xmodem_write_block(FIL* fp, uint8_t *buf, int32_t size)
 }
     
 /****************************************************************************
- * XMODEM SUPPORT FUNCTIONS
+ * XMODEM is a protocol that comes in many flavors with many extensions
+ * and additions. We only support the CRC16 mode to ensure data validity.
  ***************************************************************************/
 
 /*
  * Receive a file using the XMODEM protocol.
- *
- * XMODEM is actually a protocol that comes in many flavors,
- * with many extensions and additions.  We try to implement
- * a number of these, and switch between them automatically.
  */
 
 int xmodem_receive(UART_Handle handle, FIL* fp)
 {
     int i;
     int c;
-    int b;
     int try;
-    int status = -1;
+    int status;
     bool started = false;
-    uint16_t crc_msb, crc_lsb;
-    uint16_t crc;
+    uint8_t b, d;
+    uint16_t msb, lsb;
+    uint16_t crc, rx_crc;
     uint8_t blknum = 1;
+    FRESULT res;
 
     /* Send a 'C' out and look for a SOH reply */
+
+    status = XMODEM_NO_REPLY;
 
     for (try=0; try < 10; try++)
     {
@@ -245,63 +233,89 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
         uart_putc(handle, CRC);
 
         /* Receive a byte of data. */
-        c = uart_getc(handle, 3);
+        if ((c = uart_getc(handle, 5)) == UART_ERROR)
+        {
+            continue;
+        }
 
         /* Check for user aborting */
         if ((c == EOT) || (c == CAN))
         {
-            status = -2;
+            status = XMODEM_CANCEL;
             break;
         }
 
         /* Start of header received, start reading packet */
         if (c == SOH)
         {
-            status = 0;
+            status = XMODEM_SUCCESS;
             break;
         }
     }
 
-    System_printf("Got SOH!\n");
-    System_flush();
-
-    if (status == 0)
+    if (status == XMODEM_SUCCESS)
     {
-        for (try=0; try < 5; try++)
+#if DEBUG
+        System_printf("Got SOH!\n");
+        System_flush();
+#endif
+        crc = 0;
+        try = 0;
+
+        while(true)
         {
+            if (try > 5)
+            {
+                uart_putc(handle, CAN);
+                uart_putc(handle, CAN);
+                uart_putc(handle, CAN);
+                status = XMODEM_MAX_RETRIES;
+                break;
+            }
+
             if (started)
             {
                 /* Receive a byte of data. */
-                c = uart_getc(handle, 1);
+                c = uart_getc(handle, 3);
 
-                /* Check for user aborting */
+                /* Check for end of transmission */
                 if (c == EOT)
                 {
+#if DEBUG
                     System_printf("EOT!\n");
                     System_flush();
-
-                    status = 1;
+#endif
+                    /* Acknowledge the EOT */
+                    uart_putc(handle, ACK);
+                    status = XMODEM_SUCCESS;
                     break;
                 }
 
+                /* Check for user abort */
                 if (c == CAN)
                 {
+#if DEBUG
                     System_printf("CAN!\n");
                     System_flush();
-                    status = -3;
+#endif
+                    /* Acknowledge the cancel */
+                    uart_putc(handle, ACK);
+                    status = XMODEM_CANCEL;
                     break;
                 }
 
                 if (c != SOH)
                 {
-                    System_printf("MISSING SOH!\n");
+#if DEBUG
+                    System_printf("MISSING SOH - GOT %2x!\n", c);
                     System_flush();
-
+#endif
                     /* invalid compliment block number */
                     uart_flush(handle);
                     /* NAK to get sender to send again */
                     uart_putc(handle, NAK);
-                    /* Loop and try to synchronize */
+                    /* Loop and try to re-synchronize */
+                    ++try;
                     continue;
                 }
             }
@@ -309,446 +323,178 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
             started = true;
 
             /* Attempt to read block number */
-            if ((b = uart_getc(handle, 1)) == -1)
+            if ((c = uart_getc(handle, 3)) == -1)
             {
+#if DEBUG
                 System_printf("BLKNUM!\n");
                 System_flush();
-
-                status = -3;
-                goto errout;
+#endif
+                /* Loop and try to re-synchronize */
+                ++try;
+                continue;
             }
+
+            /* Save the block number as 8-bit */
+            b = (uint8_t)(c & 0xFF);
 
             /* Attempt to read inverse block number */
-            if ((c = uart_getc(handle, 1)) == -1)
+            if ((c = uart_getc(handle, 3)) == -1)
             {
+#if DEBUG
                 System_printf("NBLKNUM!\n");
                 System_flush();
-
-                status = -4;
-                goto errout;
+#endif
+                /* Loop and try to re-synchronize */
+                ++try;
+                continue;
             }
 
-#if 0
-            if (b == (255 - c))
+            /* Get inverse block number as 8-bit */
+            d = (uint8_t)(c & 0xFF);
+
+            /* Check block numbers match */
+            if (b != (255 - d))
             {
+#if DEBUG
                 System_printf("CBLKNUM!\n");
                 System_flush();
-
+#endif
                 /* invalid compliment block number */
                 uart_flush(handle);
                 /* NAK to get sender to send again */
                 uart_putc(handle, NAK);
+                /* Loop and try to re-synchronize */
+                ++try;
                 continue;
             }
-#endif
 
             for (i=0; i < 128; i++)
             {
-                if ((c = uart_getc(handle, 1)) == -1)
-                {
-                    System_printf("SHORT BLK %d!\n", i);
-                    System_flush();
-
+                if ((c = uart_getc(handle, 5)) == -1)
                     break;
-                }
 
+                /* Store data byte in our packet buffer */
                 xmodem_buff[i] = (uint8_t)c;
+
+                /* Sum the byte into the CRC */
+                crc = xmodem_crc(crc, xmodem_buff[i]);
             }
 
             /* Did we get a whole packet? */
             if (i != 128)
             {
-                System_printf("CBLKNUM %d!\n", i);
+#if DEBUG
+                System_printf("SHORT BLOCKS %d!\n", i);
                 System_flush();
-
-                /* No, flush, NAK and start over */
-                uart_flush(handle);
+#endif
                 /* NAK to get sender to send again */
                 uart_putc(handle, NAK);
+                ++try;
                 continue;
             }
 
             /* Read CRC high byte word */
-            if ((c = uart_getc(handle, 1)) == -1)
+            if ((c = uart_getc(handle, 3)) == -1)
             {
+#if DEBUG
                 System_printf("MSB!\n");
                 System_flush();
-
+#endif
                 /* invalid compliment block number */
                 uart_flush(handle);
                 /* NAK to get sender to send again */
                 uart_putc(handle, NAK);
+                ++try;
                 continue;
             }
 
-            crc_msb = (uint16_t)c & 0xFF;
+            msb = (c & 0xFF);
 
             /* Read CRC low byte word */
-            if ((c = uart_getc(handle, 1)) == -1)
+            if ((c = uart_getc(handle, 3)) == -1)
             {
+#if DEBUG
                 System_printf("LSB!\n");
                 System_flush();
-
+#endif
                 /* invalid compliment block number */
                 uart_flush(handle);
                 /* NAK to get sender to send again */
                 uart_putc(handle, NAK);
+                ++try;
                 continue;
             }
 
-            crc_lsb = (uint16_t)c & 0xFF;
+            lsb = (c & 0xFF);
 
-            crc = (crc_msb << 8) | crc_lsb;
+            rx_crc = (msb << 8) | lsb;
 
-            uart_putc(handle, ACK);
+#if 0
+            if (crc != rx_crc)
+            {
+#if DEBUG
+                System_printf("CRC ERR BLOCK %d!\n", blknum);
+                System_flush();
+#endif
+                /* invalid CRC */
+                uart_flush(handle);
+                /* NAK to get sender to send again */
+                uart_putc(handle, NAK);
+                ++try;
+                continue;
+            }
+#endif
+            /* Write the block to disk */
+            if ((res =  xmodem_write_block(fp, xmodem_buff, 128)) != FR_OK)
+            {
+#if DEBUG
+                System_printf("FILE WRITE ERR %d!\n", res);
+                System_flush();
+#endif
+                /* Cancel the transfer! */
+                uart_putc(handle, CAN);
+                uart_putc(handle, CAN);
+                uart_putc(handle, CAN);
 
+                status = XMODEM_FILE_WRITE;
+                break;
+            }
+#if DEBUG
             System_printf("ACK BLOCK %d!\n", blknum);
             System_flush();
+#endif
+            /* Send the ACK */
+            uart_putc(handle, ACK);
 
+            /* Toggle the STAT LED every good packet */
+            GPIO_toggle(Board_LED_ACT);
+
+            /* Block received successfully, reset retry counter */
+            try = 0;
+
+            /* Increment next expected block number */
             ++blknum;
         }
     }
 
-errout:
+#if DEBUG
+    System_printf("EXIT XMDM %d!\n", blknum);
+    System_flush();
+#endif
 
     return status;
 }
 
 
+/*
+ * Send a file using the XMODEM protocol.
+ */
 
-#if 0
-int xmodem_receive(UART_Handle handle, FIL* fp)
+int xmodem_send(UART_Handle handle, FIL* fp)
 {
-    uint8_t     c, blk, n;
-    uint16_t    crc, ncrc;
-    uint32_t    total;
-    char        mode, state, can, try, first;
-    int         i, size, ptr;
-#if USE_YMODEM
-    char        eot = 0;
-#endif
+    int status = 0;
 
-    /*
-     * XMODEM starts sending the first block.
-     * That said, there is an extension to the protocol
-     * called TeLink, which actually starts sending the
-     * first block as number 0.  This extra block contains
-     * all kinds of information about the file.
-     */
-
-    n = 1;
-
-    uart_rxflush(handle);
-
-    /*
-     * We implement the protocol as a state machine
-     * handling all the various tasks.  We do need
-     * to implement timeouts!
-     */
-
-    mode = XMODEM_CRC;
-    try = can = first = 0;
-    i = ptr = size = 0;
-    crc = blk = 0;
-    total = 0;
-    state = 1;
-    c = 0;
-
-    while (state > 0)
-    {
-        /* If we need data, wait for some. */
-        if (state > 1)
-        {
-            /* Receive a byte of data. */
-            i = uart_getc(handle, 5);
-            c = (unsigned char) (i & 0xff);
-        }
-
-        /* Now check what we have to do with the byte. */
-        switch (state)
-        {
-            case 1:     /* send START byte and wait for command */
-                if (++try == NUM_TRIES)
-                {
-                    try = 0;
-                    /* no response, give up. */
-                    System_printf("NO REPSONSE\n");
-                    System_flush();
-                    uart_putc(handle, CAN);
-                    state = 0;
-                }
-                else
-                {
-                    if (mode == XMODEM_BASIC)
-                        uart_putc(handle, NAK);
-                      else
-                        uart_putc(handle, CRC);
-                    /* Enter "read command" state. */
-                    state++;
-                }
-                first = 1;
-                break;
-
-            case 2:     /* read command byte */
-                /* If we got a timeout, see what we must do. */
-                if (i < 0)
-                {
-                    System_printf("TIMEOUT\n");
-                    System_flush();
-
-                    if (size == 0)
-                    {
-                        /* Still negotiating, try again. */
-                        state = 1;
-                        break;
-                    }
-
-                    /* Error, handle it. */
-                    if (++try == 10)
-                    {
-                        System_printf("TOO MANY ERRORS\n");
-                        System_flush();
-                        uart_putc(handle, CAN);
-                        uart_putc(handle, CAN);
-                        uart_putc(handle, CAN);
-                        state = 0;
-                        break;
-                    }
-
-                    /* Send NAK and loop. */
-                    uart_putc(handle, NAK);
-                    break;
-                }
-
-                /* Initialize CRC or checksum. */
-                crc = 0;
-
-                /* Handle new byte. */
-                switch(c)
-                {
-                    case SOH:   /* standard block */
-                        if (first)
-                        {
-                            first = 0;
-                            System_printf("XMODEM\n");
-                            System_flush();
-                        }
-                        size = PKT_SIZE;
-                        try = 0;
-                        state++;
-                        break;
-
-                    case STX:   /* 1024-block */
-                        if (first)
-                        {
-                            first = 0;
-                            System_printf("YMODEM\n");
-                            System_flush();
-                        }
-                        size = PKT_SIZE_1K;
-                        try = 0;
-                        state++;
-                        break;
-
-                    case EOT:   /* end of file */
-#if USE_YMODEM
-                        if (mode == XMODEM_BATCH)
-                        {
-                            if (eot)
-                            {
-                                uart_putc(ACK);
-                                uart_putc(CRC);
-                            }
-                            else
-                            {
-                                uart_putc(NAK);
-                            }
-                            eot = (1 - eot);
-                        }
-                        else
-                        {
-#endif
-                            state = 0;
-                            uart_putc(handle, ACK);
-#if USE_YMODEM
-                        }
-#endif
-                        break;
-
-                    case CAN:   /* user-initiated cancel */
-                        if (can)
-                        {
-                            System_printf("CANCELED\n");
-                            System_flush();
-                            state = 0;
-                            uart_putc(handle, ACK);
-                            break;
-                        }
-                        can = (1 - can);
-                        break;
-
-                    default:    /* junk, ignore */
-                        break;
-                }
-                break;
-
-            case 3:     /* read block number */
-                blk = c;
-                state++;
-                break;
-
-            case 4:     /* read modulo-block number */
-                /* The block numbers must be the same. */
-                if (c != (255 - blk))
-                {
-                    System_printf("BLK ERR %d\n", c);
-                    System_flush();
-                    uart_putc(handle, NAK);
-                    state = 2;
-                    break;
-                }
-
-                /*
-                 * YMODEM sends a "Block 0" which is really
-                 * an extra block containing file info we
-                 * may need later.  Just for fun, accept it
-                 * and then basically proceed as usual..
-                 */
-#if USE_YMODEM
-                if (blk != 0)
-                {
-#endif              /* Block must be the expected one! */
-                    if (blk != n)
-                    {
-                        System_printf("UNEXP BLK %d\n", blk);
-                        System_flush();
-                        uart_putc(handle, NAK);
-                        state = 2;
-                        break;
-                    }
-#if USE_YMODEM
-                }
-                else
-                {
-                    /* Assume YMODEM mode. */
-                    mode = XMODEM_BATCH;
-                    n = 0;
-                }
-#endif
-                /* Set up for receiving data. */
-                ptr = 0;
-                state++;
-                break;
-
-            case 5:     /* read data bytes */
-
-                if (i < 0)
-                {
-                    System_printf("RX TIMEOUT\n");
-                    System_flush();
-                    state = 0;
-                    break;
-                }
-
-                /* Store the data byte in our buffer. */
-                xmodem_buff[ptr++] = c;
-
-                /* Update CRC or checksum. */
-                if (mode == XMODEM_BASIC)
-                    crc += c;
-                  else
-                    crc = xmodem_crc(crc, c);
-
-                /* All bytes done? */
-                if (ptr == size)
-                {
-                    System_printf("RX TIMEOUT\n");
-                    System_flush();
-                    state++;
-                }
-                break;
-
-            case 6:     /* read checksum */
-                if (mode == XMODEM_BASIC)
-                {
-                    /* Checksums must match! */
-                    crc &= 0xff;
-                    if (crc != c)
-                    {
-badcrc:                 System_printf("CRC BLK %d\n", n);
-                        System_flush();
-                        state = 2;
-                        uart_putc(handle, NAK);
-                        break;
-                    }
-
-                }
-                else
-                {
-                    /* CRC modes, read second byte! */
-                    blk = c;    /* save first byte */
-
-                    i = uart_getc(handle, 5);
-
-                    if (i < 0)
-                    {
-                        System_printf("TIMEOUT\n");
-                        System_flush();
-                        state = 0;
-                        uart_putc(handle, CAN);
-                        break;
-                    }
-
-                    c = (unsigned char) (i & 0xff);
-
-                    ncrc = (blk << 8) | c;
-
-                    if (ncrc != crc)
-                        goto badcrc;
-                }
-
-                /* Packet was OK, so write it to the file. */
-                uart_putc(handle, ACK);
-
-                /* FIXME: call the FileWrite(buff, size) func here. */
-                xmodem_write_block(fp, xmodem_buff, size);
-
-                /* Request the next block. */
-                state = 2;
-#if USE_YMODEM
-                if (n == 0)
-                {
-                    /* Process the info block. */
-                    if (xmodem_info((char *)xmodem_buff) == 0)
-                        uart_putc(CRC);    /* accept file */
-                    else
-                        state = 0;          /* all files done */
-                }
-                else
-                {
-#endif
-                    total += size;
-#if USE_YMODEM
-                }
-#endif
-                System_printf("received %d bytes\n", total);
-                System_flush();
-                n++;
-                break;
-        }
-    }
-
-    /* Some protocol debug info. */
-#if 0
-    if (xmodem_name[0] != '\0') {
-        System_printf("'%s', size %lu bytes", xmodem_name, xmodem_size);
-        System_flush();
-    }
-#endif
-
-    return state;
+    return status;
 }
-#endif
-
 
 /* End-Of-File */
