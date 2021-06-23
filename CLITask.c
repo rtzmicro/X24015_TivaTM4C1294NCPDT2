@@ -2,7 +2,7 @@
  *
  * XMOD Tiva TM4C1294 Processor Card
  *
- * Copyright (C) 2020, RTZ Microsystems, LLC
+ * Copyright (C) 2021, RTZ Microsystems, LLC
  * All Rights Reserved
  *
  * RTZ is registered trademark of RTZ Microsystems, LLC
@@ -111,30 +111,34 @@ MK_CMD(sn);
 MK_CMD(time);
 MK_CMD(date);
 MK_CMD(dir);
-MK_CMD(cd);
 MK_CMD(cwd);
-MK_CMD(mkdir);
-MK_CMD(unlink);
+MK_CMD(cd);
+MK_CMD(md);
+MK_CMD(ren);
+MK_CMD(del);
+MK_CMD(copy);
 MK_CMD(xmdm);
 
 /* The dispatch table */
 #define CMD(func, help) {#func, cmd_ ## func, help}
 
 static cmd_t dispatch[] = {
-    CMD(cls, "Clear the screen"),
-    CMD(help, "Display this help"),
-    CMD(about, "About the system"),
-    CMD(ip, "Displays IP address"),
-    CMD(mac, "Displays MAC address"),
-    CMD(sn, "Display serial number"),
-    CMD(time, "Display current time"),
-    CMD(date, "Display current date"),
-    CMD(dir, "List directory"),
-    CMD(cd, "Change directory"),
-    CMD(cwd, "Display current working dir"),
-    CMD(mkdir, "Make a subdir"),
-    CMD(unlink, "Remove a file or subdir"),
-    CMD(xmdm, "Send/Receive File"),
+    CMD(cls,    "Clear the screen"),
+    CMD(help,   "Display this help"),
+    CMD(about,  "About the system"),
+    CMD(ip,     "Displays IP address"),
+    CMD(mac,    "Displays MAC address"),
+    CMD(sn,     "Display serial number"),
+    CMD(time,   "Display current time"),
+    CMD(date,   "Display current date"),
+    CMD(dir,    "List directory"),
+    CMD(cwd,    "Display current directory"),
+    CMD(cd,     "Change directory"),
+    CMD(md,     "Make a new directory"),
+    CMD(ren,    "Rename a file or directory"),
+    CMD(del,    "Delete a file or directory"),
+    CMD(copy,   "Copy a file to a new file"),
+    CMD(xmdm,   "XMODEM send/receive file"),
 };
 
 #define NUM_CMDS    (sizeof(dispatch)/sizeof(cmd_t))
@@ -150,7 +154,7 @@ static cmd_t dispatch[] = {
 
 /*** Static Data Items ***/
 static UART_Handle s_handleUart;
-static const char *s_delim = " ://\n";
+static const char *s_delim = " :/\\\n";
 static char s_cmdbuf[MAX_CHARS+3];
 static char s_cmdprev[MAX_CHARS+3];
 
@@ -161,21 +165,17 @@ static char  s_args[MAX_ARGS][MAX_ARG_LEN];
 /* Current Working Directory */
 static char s_cwd[MAX_PATH] = "\\";
 
-/*** Static Function Prototypes ***/
+/*** Static Helper Function Prototypes ***/
 static int parse_args(char *buf);
 static void parse_cmd(char *buf);
-static bool IsClockRunning(void);
-static char *FSErrorString(int errno);
-static FRESULT _dirlist(char* path);
-static char* _getcwd(void);
-static void _perror(FRESULT res);
 
-/*** External Data Items ***/
-extern SYSDATA g_sys;
-extern SYSCONFIG g_cfg;
+static void _perror(FRESULT res);
+static char* _getcwd(void);
+static FRESULT _dirlist(char* path);
+static FRESULT _checkcmd(FRESULT res);
 
 //*****************************************************************************
-//
+// Initialize the UART and open the tty serial port.
 //*****************************************************************************
 
 int CLI_init(void)
@@ -186,12 +186,12 @@ int CLI_init(void)
 
     uartParams.readMode       = UART_MODE_BLOCKING;
     uartParams.writeMode      = UART_MODE_BLOCKING;
-    uartParams.readTimeout    = 1000;                   // 1 second read timeout
+    uartParams.readTimeout    = 1000;
     uartParams.writeTimeout   = BIOS_WAIT_FOREVER;
     uartParams.readCallback   = NULL;
     uartParams.writeCallback  = NULL;
     uartParams.readReturnMode = UART_RETURN_FULL;
-    uartParams.writeDataMode  = UART_DATA_BINARY;       //UART_DATA_TEXT;
+    uartParams.writeDataMode  = UART_DATA_BINARY;
     uartParams.readDataMode   = UART_DATA_BINARY;
     uartParams.readEcho       = UART_ECHO_OFF;
     uartParams.baudRate       = 115200;
@@ -208,7 +208,7 @@ int CLI_init(void)
 }
 
 //*****************************************************************************
-//
+// Startup the command line task
 //*****************************************************************************
 
 Bool CLI_startup(void)
@@ -219,8 +219,8 @@ Bool CLI_startup(void)
     Error_init(&eb);
     Task_Params_init(&taskParams);
 
-    taskParams.stackSize = 2048;
-    taskParams.priority  = 2;
+    taskParams.stackSize = 4096;
+    taskParams.priority  = 11;
     taskParams.arg0      = 0;
     taskParams.arg1      = 0;
 
@@ -230,77 +230,7 @@ Bool CLI_startup(void)
 }
 
 //*****************************************************************************
-//
-//*****************************************************************************
-
-int CLI_getc(void)
-{
-    int ch;
-
-    /* Read a character from the console */
-    if (UART_read(s_handleUart, &ch, 1) == 1)
-        return ch;
-
-    return -1;
-}
-
-void CLI_putc(int ch)
-{
-    if (ch == '\n')
-    {
-        ch = '\r';
-        UART_write(s_handleUart, &ch, 1);
-        ch = '\n';
-    }
-
-    UART_write(s_handleUart, &ch, 1);
-}
-
-void CLI_crlf(void)
-{
-    CLI_putc('\n');
-}
-
-void CLI_puts(char* s)
-{
-    int i;
-    int l = strlen(s);
-
-    for (i=0; i < l; i++)
-        CLI_putc(*s++);
-}
-
-void CLI_printf(const char *fmt, ...)
-{
-    va_list arg;
-    static char buf[128];
-    va_start(arg, fmt);
-    vsnprintf(buf, sizeof(buf)-1, fmt, arg);
-    va_end(arg);
-    CLI_puts(buf);
-}
-
-void CLI_prompt(void)
-{
-    CLI_putc(LF);
-    CLI_puts(s_cwd);
-    CLI_putc('>');
-}
-
-void CLI_about(void)
-{
-    CLI_printf("XMOD X24015 [Version %d.%02d.%03d]\n", FIRMWARE_VER, FIRMWARE_REV, FIRMWARE_BUILD);
-    CLI_puts("(C) 2021 RTZ Microsystems. All Rights Reserved.\n");
-}
-
-void CLI_home(void)
-{
-    CLI_printf(VT100_HOME);
-    CLI_printf(VT100_CLS);
-}
-
-//*****************************************************************************
-//
+// The main command line interface task.
 //*****************************************************************************
 
 Void CLITaskFxn(UArg arg0, UArg arg1)
@@ -316,7 +246,7 @@ Void CLITaskFxn(UArg arg0, UArg arg1)
 
     CLI_home();
     CLI_about();
-    CLI_puts("\nEnter 'help' to view a list valid commands\n");
+    CLI_puts("\nEnter 'help' to view a list of valid commands\n");
     CLI_prompt();
 
     while (true)
@@ -363,7 +293,7 @@ Void CLITaskFxn(UArg arg0, UArg arg1)
                 {
                     if (isgraph((int)ch) || strchr(s_delim, (int)ch) || (ch == '.'))
                     {
-                        s_cmdbuf[cnt++] = tolower(ch);
+                        s_cmdbuf[cnt++] = ch;
                         s_cmdbuf[cnt] = 0;
                         CLI_putc((int)ch);
                     }
@@ -374,7 +304,88 @@ Void CLITaskFxn(UArg arg0, UArg arg1)
 }
 
 //*****************************************************************************
-//
+// Low level tty interface and helper functions
+//*****************************************************************************
+
+void CLI_about(void)
+{
+    CLI_printf("XMOD 24015 [Version %d.%02d.%03d]\n",
+               FIRMWARE_VER, FIRMWARE_REV, FIRMWARE_BUILD);
+    CLI_puts("(C) 2021 RTZ Microsystems. All Rights Reserved.\n");
+}
+
+int CLI_getc(void)
+{
+    int ch;
+
+    /* Read a character from the console */
+    if (UART_read(s_handleUart, &ch, 1) == 1)
+        return ch;
+
+    return -1;
+}
+
+void CLI_putc(int ch)
+{
+    if (ch == '\n')
+    {
+        ch = '\r';
+        UART_write(s_handleUart, &ch, 1);
+        ch = '\n';
+    }
+
+    UART_write(s_handleUart, &ch, 1);
+}
+
+void CLI_puts(char* s)
+{
+    int i;
+    int l = strlen(s);
+
+    for (i=0; i < l; i++)
+        CLI_putc(*s++);
+}
+
+void CLI_printf(const char *fmt, ...)
+{
+    va_list arg;
+    static char buf[128];
+    va_start(arg, fmt);
+    vsnprintf(buf, sizeof(buf)-1, fmt, arg);
+    va_end(arg);
+    CLI_puts(buf);
+}
+
+void CLI_prompt(void)
+{
+    CLI_putc(LF);
+    CLI_puts(s_cwd);
+    CLI_putc('>');
+}
+
+void CLI_home(void)
+{
+    CLI_printf(VT100_HOME);
+    CLI_printf(VT100_CLS);
+}
+
+void CLI_crlf(int n)
+{
+    CLI_emit('\n', n);
+}
+
+void CLI_emit(char c, int n)
+{
+    if (n > 0)
+    {
+        do {
+            CLI_putc(c);
+        } while(--n);
+    }
+}
+
+//*****************************************************************************
+// Parse command line for command and any arguments
 //*****************************************************************************
 
 int parse_args(char *buf)
@@ -429,47 +440,7 @@ void parse_cmd(char *buf)
 // Static Helper Functions
 //*****************************************************************************
 
-bool IsClockRunning(void)
-{
-    if (!MCP79410_IsRunning(g_sys.handleRTC))
-    {
-        CLI_printf("clock not running - set/time or date first\n");
-        return false;
-    }
-
-    return true;
-}
-
-char *FSErrorString(int errno)
-{
-    static char* FSErrorString[] = {
-        "Success",
-        "A hard error occurred",
-        "Assertion failed",
-        "Physical drive error",
-        "Could not find the file",
-        "Could not find the path",
-        "The path name format is invalid",
-        "Access denied due to prohibited access or directory full",
-        "Access denied due to prohibited access",
-        "The file/directory object is invalid",
-        "The physical drive is write protected",
-        "The logical drive number is invalid",
-        "The volume has no work area",
-        "There is no valid FAT volume",
-        "The f_mkfs() aborted due to any parameter error",
-        "Could not get a grant to access the volume within defined period",
-        "The operation is rejected according to the file sharing policy",
-        "LFN working buffer could not be allocated",
-        "Too many open files",
-        "Given parameter is invalid"
-    };
-
-    if (errno > sizeof(FSErrorString)/sizeof(char*))
-        return "???";
-
-    return FSErrorString[errno];
-}
+/* List files in a directory with time, date, size and file name */
 
 FRESULT _dirlist(char* path)
 {
@@ -481,7 +452,7 @@ FRESULT _dirlist(char* path)
     /* Open the directory */
     if ((res = f_opendir(&dir, path)) != FR_OK)
     {
-        CLI_printf("%s\n", FSErrorString(res));
+        CLI_printf("%s\n", FS_GetErrorStr(res));
     }
     else
     {
@@ -497,47 +468,18 @@ FRESULT _dirlist(char* path)
             if (fno.fattrib & AM_SYS)
                 continue;
 
+            /* Print the file date */
+            FS_GetDateStr(fno.fdate, buf, sizeof(buf));
+            CLI_puts(buf);
+            CLI_emit(' ', 2);
+
+            FS_GetTimeStr(fno.ftime, buf, sizeof(buf));
+            CLI_puts(buf);
+
             if (fno.fattrib & AM_DIR)
                 sprintf(buf, "%-15s", "<DIR>");
             else
                 sprintf(buf, "%15u", fno.fsize);
-
-            /* 16-Bit Date Bits Format
-             * YYYYYYYMMMMDDDDD
-             *
-             * bit15:9      Year origin from 1980 (0..127)
-             * bit8:5       Month (1..12)
-             * bit4:0       Day (1..31)
-             */
-
-            CLI_printf("%02u/%02u/%04u  ",
-                       (fno.fdate >> 5) & 0x0F,
-                       (fno.fdate >> 0) & 0x1F,
-                      ((fno.fdate >> 9) & 0x7F) + 1980);
-
-            /* 16-Bit Time Format
-             * HHHHHMMMMMMSSSSS
-             *
-             * bit15:11     Hour (0..23)
-             * bit10:5      Minute (0..59)
-             * bit4:0       Second / 2 (0..29)
-             */
-
-            uint32_t hour = (fno.ftime >> 11) & 0x1F;
-
-            bool pm = false;
-
-            if (hour > 12)
-            {
-                hour = hour - 12;
-                pm = true;
-            }
-
-            CLI_printf("%02u:%02u:%02u %s",
-                       hour,
-                       (fno.ftime >> 5) & 0x3F,
-                      ((fno.ftime >> 0) & 0x1F) >> 1,
-                       pm ? "PM" : "AM");
 
             if (fno.lfname)
                 CLI_printf("    %s %s\n", buf, fno.lfname);
@@ -567,13 +509,27 @@ char* _getcwd(void)
     return s_cwd;
 }
 
+/* Print file system error message */
+
 void _perror(FRESULT res)
 {
-    CLI_printf("%s\n", FSErrorString(res));
+    CLI_printf("%s\n", FS_GetErrorStr(res));
+}
+
+/* Acknowledge successful command with new line, or error message */
+
+FRESULT _checkcmd(FRESULT res)
+{
+    if (res == FR_OK)
+        CLI_putc('\n');
+    else
+        _perror(res);
+
+    return res;
 }
 
 //*****************************************************************************
-// CLI Command Handlers
+// BASIC CLI COMMANDS
 //*****************************************************************************
 
 void cmd_help(int argc, char *argv[])
@@ -639,34 +595,41 @@ void cmd_mac(int argc, char *argv[])
     CLI_printf("MAC address: %s\n", mac);
 }
 
+//*****************************************************************************
+// DATE AND TIME COMMANDS
+//*****************************************************************************
+
 void cmd_time(int argc, char *argv[])
 {
     RTCC_Struct ts;
 
     if (argc == 0)
     {
-        if (!IsClockRunning())
+        if (!RTC_IsRunning())
             return;
 
-        MCP79410_GetTime(g_sys.handleRTC, &ts);
+        RTC_GetDateTime(&ts);
 
         CLI_printf("Current time: %d:%02d:%02d\n", ts.hour, ts.min, ts.sec);
     }
     else if (argc == 3)
     {
         /* Get current time/date */
-        MCP79410_GetTime(g_sys.handleRTC, &ts);
+        RTC_GetDateTime(&ts);
 
-        ts.hour    = (uint8_t)atoi(argv[0]);
-        ts.min     = (uint8_t)atoi(argv[1]);
-        ts.sec     = (uint8_t)atoi(argv[2]);
+        ts.hour = (uint8_t)atoi(argv[0]);
+        ts.min  = (uint8_t)atoi(argv[1]);
+        ts.sec  = (uint8_t)atoi(argv[2]);
 
-        MCP79410_SetHourFormat(g_sys.handleRTC, H24);                // Set hour format to military time standard
-        MCP79410_EnableVbat(g_sys.handleRTC);                        // Enable battery backup
-        MCP79410_SetTime(g_sys.handleRTC, &ts);
-        MCP79410_EnableOscillator(g_sys.handleRTC);                  // Start clock by enabling oscillator
-
-        CLI_printf("Time set!\n");
+        if (RTC_IsValidTime(&ts))
+        {
+            RTC_SetDateTime(&ts);
+            CLI_printf("Time set!\n");
+        }
+        else
+        {
+            CLI_printf("Invalid time entered\n");
+        }
     }
     else
     {
@@ -680,29 +643,32 @@ void cmd_date(int argc, char *argv[])
 
     if (argc == 0)
     {
-        if (!IsClockRunning())
+        if (!RTC_IsRunning())
             return;
 
-        MCP79410_GetTime(g_sys.handleRTC, &ts);
+        RTC_GetDateTime(&ts);
 
-        CLI_printf("Current date: %d/%d/%d\n", ts.month, ts.date, ts.year+2000);
+        CLI_printf("Current date: %d/%d/%d\n", ts.month+1, ts.date+1, ts.year+2000);
     }
     else if (argc == 3)
     {
         /* Get current time/date */
-        MCP79410_GetTime(g_sys.handleRTC, &ts);
+        RTC_GetDateTime(&ts);
 
-        ts.month   = (uint8_t)atoi(argv[0]);
-        ts.date    = (uint8_t)atoi(argv[1]);
+        ts.month   = (uint8_t)(atoi(argv[0]) - 1);
+        ts.date    = (uint8_t)(atoi(argv[1]) - 1);
         ts.year    = (uint8_t)(atoi(argv[2]) - 2000);
         ts.weekday = (uint8_t)((ts.date % 7) + 1);
 
-        MCP79410_SetHourFormat(g_sys.handleRTC, H24);                // Set hour format to military time standard
-        MCP79410_EnableVbat(g_sys.handleRTC);                        // Enable battery backup
-        MCP79410_SetTime(g_sys.handleRTC, &ts);
-        MCP79410_EnableOscillator(g_sys.handleRTC);                  // Start clock by enabling oscillator
-
-        CLI_printf("Date set!\n");
+        if (RTC_IsValidDate(&ts))
+        {
+            RTC_SetDateTime(&ts);
+            CLI_printf("Date set!\n");
+        }
+        else
+        {
+            CLI_printf("Invalid date entered\n");
+        }
     }
     else
     {
@@ -711,7 +677,7 @@ void cmd_date(int argc, char *argv[])
 }
 
 //*****************************************************************************
-// Directory and File Operations
+// FILE SYSTEM COMMANDS
 //*****************************************************************************
 
 void cmd_dir(int argc, char *argv[])
@@ -736,44 +702,6 @@ void cmd_cwd(int argc, char *argv[])
     CLI_printf("%s\n", _getcwd());
 }
 
-void cmd_mkdir(int argc, char *argv[])
-{
-    FRESULT res;
-
-    if (argc == 1)
-    {
-        /* Attempt to make a directory */
-        res = f_mkdir(argv[0]);
-
-        if (res == FR_OK)
-            CLI_printf("%s\n", argv[0]);
-        else
-            _perror(res);
-    }
-}
-
-void cmd_unlink(int argc, char *argv[])
-{
-    FRESULT res;
-
-    if (argc == 1)
-    {
-        /* Attempt to make a directory */
-        res = f_unlink(argv[0]);
-
-        if (res == FR_OK)
-        {
-            CLI_puts("Removed ");
-            CLI_puts(argv[0]);
-            CLI_putc('\n');
-        }
-        else
-        {
-            _perror(res);
-        }
-    }
-}
-
 void cmd_cd(int argc, char *argv[])
 {
     FRESULT res;
@@ -783,12 +711,10 @@ void cmd_cd(int argc, char *argv[])
         /* Attempt to change to the directory path */
         res = f_chdir(argv[0]);
 
+        /* Read back the current directory we're in */
         _getcwd();
 
-        if (res == FR_OK)
-            CLI_printf("%s\n", s_cwd);
-        else
-            _perror(res);
+        _checkcmd(res);
     }
     else
     {
@@ -797,6 +723,117 @@ void cmd_cd(int argc, char *argv[])
         CLI_printf("%s\n", s_cwd);
     }
 }
+
+void cmd_md(int argc, char *argv[])
+{
+    FRESULT res;
+
+    if (argc == 1)
+    {
+        /* Attempt to make a directory */
+        res = f_mkdir(argv[0]);
+
+        _checkcmd(res);
+    }
+}
+
+void cmd_ren(int argc, char *argv[])
+{
+    FRESULT res;
+
+    if (argc == 2)
+    {
+        /* Rename/Move a file or directory */
+        res = f_rename(argv[0], argv[1]);
+
+        _checkcmd(res);
+    }
+}
+
+void cmd_del(int argc, char *argv[])
+{
+    FRESULT res;
+
+    if (argc == 1)
+    {
+        /* Attempt to make a directory */
+        res = f_unlink(argv[0]);
+
+        _checkcmd(res);
+    }
+}
+
+void cmd_copy(int argc, char *argv[])
+{
+    FIL fsrc, fdst;
+    FRESULT res;
+    UINT br, bw;
+    BYTE buf[256];
+    char src[128];
+    char dest[128];
+
+    if (argc != 2)
+    {
+        CLI_printf("Source and destination name are required\n");
+        return;
+    }
+
+    strcpy(src, "0:");
+    strncpy(&src[2], argv[0], sizeof(src)-4);
+
+    /* Open source file on the drive 1 */
+    res = f_open(&fsrc, src, FA_READ);
+
+    if (res != FR_OK)
+    {
+        _checkcmd(res);
+        return;
+    }
+
+    strcpy(dest, "0:");
+    strncpy(&dest[2], argv[1], sizeof(dest)-4);
+
+    /* Create destination file on the drive 0 */
+    res = f_open(&fdst, dest, FA_WRITE | FA_CREATE_ALWAYS);
+
+    if (res != FR_OK)
+    {
+        f_close(&fsrc);
+        _checkcmd(res);
+        return;
+    }
+
+    CLI_puts("Copying...");
+
+    /* Copy source to destination */
+    for (;;)
+    {
+        /* Read a chunk of data from the source file */
+        res = f_read(&fsrc, buf, sizeof(buf), &br);
+
+        if (br == 0)
+            break;      /* error or eof */
+
+        /* Write it to the destination file */
+        res = f_write(&fdst, buf, br, &bw);
+
+        if (bw < br)
+        {
+            /* error or disk full */
+            _checkcmd(res);
+            break;
+        }
+    }
+
+    CLI_puts("done\n");
+
+    f_close(&fsrc);
+    f_close(&fdst);
+}
+
+//*****************************************************************************
+// FILE TRANSFER COMMANDS
+//*****************************************************************************
 
 void cmd_xmdm(int argc, char *argv[])
 {
@@ -810,7 +847,7 @@ void cmd_xmdm(int argc, char *argv[])
 
     if (argc != 2)
     {
-        CLI_printf("Usage:\n\n");
+        CLI_printf("XMODEM Usage:\n\n");
         CLI_printf("xmdm s {filename}\t[sends a file]\n");
         CLI_printf("xmdm r {filename}\t[receives a file]\n");
         return;
@@ -819,7 +856,7 @@ void cmd_xmdm(int argc, char *argv[])
     if (toupper(*argv[0]) == 'R')
     {
         /* Receive a file */
-        if ((res = f_open(&fp, argv[1], FA_WRITE|FA_CREATE_NEW|FA_CREATE_ALWAYS)) == FR_OK)
+        if ((res = f_open(&fp, argv[1], FA_WRITE|FA_OPEN_ALWAYS)) == FR_OK)
         {
             CLI_printf("XMODEM Receive Ready\n");
 

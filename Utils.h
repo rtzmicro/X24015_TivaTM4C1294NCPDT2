@@ -14,6 +14,19 @@
 // Function Prototypes
 //*****************************************************************************
 
+char* FS_GetErrorStr(int errnum);
+void FS_GetDateStr(uint16_t fsdate, char* buf, size_t bufsize);
+void FS_GetTimeStr(uint16_t fstime, char* buf, size_t bufsize);
+uint32_t FS_GetFatTime(void);
+
+bool RTC_IsRunning(void);
+bool RTC_GetDateTime(RTCC_Struct* ts);
+bool RTC_SetDateTime(RTCC_Struct* ts);
+void RTC_GetTimeStr(RTCC_Struct* ts, char *timestr);
+void RTC_GetDateStr(RTCC_Struct* ts, char *datestr);
+bool RTC_IsValidTime(RTCC_Struct* ts);
+bool RTC_IsValidDate(RTCC_Struct* ts);
+
 void ConfigInitDefaults(SYSCONFIG* p);
 int ConfigParamsRead(SYSCONFIG* sp);
 int ConfigParamsWrite(SYSCONFIG* sp);

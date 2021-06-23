@@ -63,7 +63,7 @@
 #include <X24015_TM4C1294NCPDT.h>
 
 #ifndef TI_DRIVERS_UART_DMA
-#define TI_DRIVERS_UART_DMA 0
+#define TI_DRIVERS_UART_DMA 1
 #endif
 
 /*
@@ -912,7 +912,7 @@ const UARTTivaDMA_HWAttrs uartTivaHWAttrs[X24015_UARTCOUNT] = {
         .intNum         = INT_UART3,
         .intPriority    = (~0),
         .rxChannelIndex = UDMA_CH16_UART3RX,
-        .txChannelIndex = UDMA_CH16_UART3TX,
+        .txChannelIndex = UDMA_CH17_UART3TX,
     },
     {
         .baseAddr       = UART5_BASE,
@@ -965,7 +965,7 @@ const UARTTiva_HWAttrs uartTivaHWAttrs[X24015_UARTCOUNT] = {
         .baseAddr    = UART0_BASE,
         .intNum      = INT_UART0,
         .intPriority = (~0),
-        .flowControl = UART_FLOWCONTROL_TX|UART_FLOWCONTROL_RX,
+        .flowControl = UART_FLOWCONTROL_NONE,
         .ringBufPtr  = uartTivaRingBuffer[0],
         .ringBufSize = sizeof(uartTivaRingBuffer[0])
     },

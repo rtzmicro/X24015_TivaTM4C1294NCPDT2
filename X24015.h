@@ -32,7 +32,7 @@
  * to be reset or not.
  */
 #define FIRMWARE_VER        1           /* firmware version */
-#define FIRMWARE_REV        6           /* firmware revision */
+#define FIRMWARE_REV        7           /* firmware revision */
 #define FIRMWARE_BUILD      1           /* firmware build number */
 #define FIRMWARE_MIN_BUILD  1           /* min build req'd to force reset */
 
@@ -86,7 +86,7 @@ typedef struct _SYSDATA
 typedef enum XSYSERR {
     XSYSERR_SUCCESS=0,              /* no system errors detected */
     XSYSERR_ADC_INIT,               /* an ADC board failed to initialize */
-    XSYSERR_GUID_SERMAC,            /* error read MAC & serial number */
+    XSYSERR_GUID_SERMAC,            /* error reading MAC & serial number */
     /* max error count */
     XSYSERR_LAST_ERROR
 } XSYSERR;
@@ -100,18 +100,25 @@ typedef struct _SYSCONFIG
     uint32_t    magic;
     uint32_t    version;
     uint32_t    build;
-    /*** GLOBAL PARAMETERS ***/
-    long        debug;                     	/* debug level */
+    uint32_t    length;
 } SYSCONFIG;
 
 //*****************************************************************************
-// Meter Command Message Structure
+//
 //*****************************************************************************
+
+/*** External Data Items ***/
+
+extern SYSDATA g_sys;
+extern SYSCONFIG g_cfg;
+
+/*** Function Prototypes ***/
 
 int main(void);
 Void MainTaskFxn(UArg arg0, UArg arg1);
 
 void SetLastError(uint32_t error);
 uint32_t GetLastError(void);
+
 
 #endif /* __XMOD_24015_H */

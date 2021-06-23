@@ -49,10 +49,12 @@ Bool CLI_startup(void);
 int CLI_getc(void);
 void CLI_putc(int ch);
 void CLI_puts(char* s);
-void CLI_crlf(void);
+void CLI_crlf(int n);
+void CLI_emit(char c, int n);
 void CLI_printf(const char *fmt, ...);
 void CLI_prompt(void);
-
+void CLI_about(void);
+void CLI_home(void);
 Void CLITaskFxn(UArg arg0, UArg arg1);
 
 #endif /* __REMOTETASK_H */
