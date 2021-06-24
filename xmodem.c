@@ -259,7 +259,6 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
         System_printf("Got SOH!\n");
         System_flush();
 #endif
-        crc = 0;
         try = 0;
 
         while(true)
@@ -368,6 +367,8 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
                 continue;
             }
 
+            crc = 0;
+
             for (i=0; i < 128; i++)
             {
                 if ((c = uart_getc(handle, 5)) == -1)
@@ -429,7 +430,6 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
 
             rx_crc = (msb << 8) | lsb;
 
-#if 0
             if (crc != rx_crc)
             {
 #if DEBUG
@@ -443,7 +443,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
                 ++try;
                 continue;
             }
-#endif
+
             /* Write the block to disk */
             if ((res =  xmodem_write_block(fp, xmodem_buff, 128)) != FR_OK)
             {
@@ -484,7 +484,6 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
 
     return status;
 }
-
 
 /*
  * Send a file using the XMODEM protocol.

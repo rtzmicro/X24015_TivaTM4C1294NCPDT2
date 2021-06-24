@@ -446,6 +446,14 @@ FRESULT _dirlist(char* path)
 {
     FRESULT res;
     DIR dir;
+    uint32_t numdirs = 0L;
+    uint32_t numfiles = 0L;
+    uint32_t bytes = 0L;
+    FATFS *fs;
+    DWORD fre_clust;
+    DWORD fre_sect;
+    DWORD tot_sect;
+
     static char buf[_MAX_LFN];
     static FILINFO fno;
 
@@ -468,6 +476,8 @@ FRESULT _dirlist(char* path)
             if (fno.fattrib & AM_SYS)
                 continue;
 
+            bytes += (uint64_t)fno.fsize;
+
             /* Print the file date */
             FS_GetDateStr(fno.fdate, buf, sizeof(buf));
             CLI_puts(buf);
@@ -477,9 +487,15 @@ FRESULT _dirlist(char* path)
             CLI_puts(buf);
 
             if (fno.fattrib & AM_DIR)
+            {
                 sprintf(buf, "%-15s", "<DIR>");
+                ++numdirs;
+            }
             else
+            {
                 sprintf(buf, "%15u", fno.fsize);
+                ++numfiles;
+            }
 
             if (fno.lfname)
                 CLI_printf("    %s %s\n", buf, fno.lfname);
@@ -488,6 +504,32 @@ FRESULT _dirlist(char* path)
         }
 
         f_closedir(&dir);
+
+        sprintf(buf, "\n\t%8d File(s)", numfiles);
+        CLI_puts(buf);
+        sprintf(buf, "    %lu bytes\n", bytes);
+        CLI_puts(buf);
+
+        sprintf(buf, "\t%8d Dir(s)", numdirs);
+        CLI_puts(buf);
+
+        /* Get volume information and free clusters of drive 1 */
+        if ((res = f_getfree("0:", &fre_clust, &fs)) == FR_OK)
+        {
+            /* Get total sectors and free sectors */
+            tot_sect = (fs->n_fatent - 2) * fs->csize;
+            fre_sect = fre_clust * fs->csize;
+
+            sprintf(buf, "    %lu bytes free\n", fre_sect/2);
+            CLI_puts(buf);
+
+            /* Print the free space (assuming 512 bytes/sector) */
+            //CLI_printf("%10lu KiB total drive space.\n%10lu KiB available.\n", tot_sect/2, fre_sect/2);
+        }
+        else
+        {
+            CLI_putc('\n');
+        }
     }
 
     return res;

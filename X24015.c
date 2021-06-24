@@ -457,9 +457,6 @@ bool Init_Devices(void)
      * are mapped on SPI-3 with chip selects for each.
      */
 
-    //g_adcConverter[0].handle = ADC_AllocInit(g_sys.spi3, g_adcConverter[0].chipsel);
-    //g_adcConverter[1].handle = ADC_AllocInit(g_sys.spi3, g_adcConverter[1].chipsel);
-
     for (i=0; i < ADC_NUM_CONVERTERS; i++)
     {
         g_adcConverter[i].handle = ADC_AllocConverter(g_sys.spi3, g_adcConverter[i].chipsel);
@@ -482,7 +479,6 @@ bool Init_Devices(void)
 
     /* Step 3 - Now allow the NDK task, blocked by NDKStackBeginHook(), to run */
     Semaphore_post(g_semaNDKStartup);
-
 
     /* Initialize the USB module for device mode */
     USB_init();
