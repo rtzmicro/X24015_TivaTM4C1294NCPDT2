@@ -433,12 +433,35 @@ void parse_cmd(char *buf)
         }
     }
 
-    CLI_puts("Command not found.\n");
+    CLI_puts("Command not found\n");
 }
 
 //*****************************************************************************
 // Static Helper Functions
 //*****************************************************************************
+
+void format_commas(uint32_t n, char *out)
+{
+    int c;
+    char buf[32];
+    char *p;
+
+    sprintf(buf, "%u", n);
+
+    c = 2 - strlen(buf) % 3;
+
+    for (p=buf; *p != 0; p++)
+    {
+       *out++ = *p;
+
+       if (c == 1)
+           *out++ = ',';
+
+       c = (c + 1) % 3;
+    }
+
+    *--out = 0;
+}
 
 /* List files in a directory with time, date, size and file name */
 
@@ -453,8 +476,8 @@ FRESULT _dirlist(char* path)
     DWORD fre_clust;
     DWORD fre_sect;
     DWORD tot_sect;
-
-    static char buf[_MAX_LFN];
+    char buf[_MAX_LFN];
+    char tmp[32];
     static FILINFO fno;
 
     /* Open the directory */
@@ -493,7 +516,8 @@ FRESULT _dirlist(char* path)
             }
             else
             {
-                sprintf(buf, "%15u", fno.fsize);
+                format_commas(fno.fsize, tmp);
+                sprintf(buf, "%15s", tmp);
                 ++numfiles;
             }
 
@@ -507,7 +531,9 @@ FRESULT _dirlist(char* path)
 
         sprintf(buf, "\n\t%8d File(s)", numfiles);
         CLI_puts(buf);
-        sprintf(buf, "    %lu bytes\n", bytes);
+
+        format_commas(bytes, tmp);
+        sprintf(buf, "  %s bytes\n", tmp);
         CLI_puts(buf);
 
         sprintf(buf, "\t%8d Dir(s)", numdirs);
@@ -520,11 +546,12 @@ FRESULT _dirlist(char* path)
             tot_sect = (fs->n_fatent - 2) * fs->csize;
             fre_sect = fre_clust * fs->csize;
 
-            sprintf(buf, "    %lu bytes free\n", fre_sect/2);
+            format_commas(fre_sect/2, tmp);
+            sprintf(buf, "  %s bytes free\n", tmp);
             CLI_puts(buf);
 
             /* Print the free space (assuming 512 bytes/sector) */
-            //CLI_printf("%10lu KiB total drive space.\n%10lu KiB available.\n", tot_sect/2, fre_sect/2);
+            //CLI_printf("%10lu KiB total drive space\n", tot_sect/2);
         }
         else
         {

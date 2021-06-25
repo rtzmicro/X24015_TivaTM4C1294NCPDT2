@@ -73,6 +73,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <locale.h>
 
 #include "Board.h"
 #include "X24015.h"
@@ -147,6 +148,8 @@ int main(void)
 	Task_Params taskParams;
     //Mailbox_Params mboxParams;
     Error_Block eb;
+
+    setlocale(LC_ALL,"");
 
     /* default GUID & MAC values */
     memset(&g_cfg, 0, sizeof(g_cfg));

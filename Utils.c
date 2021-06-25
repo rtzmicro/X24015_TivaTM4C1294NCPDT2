@@ -418,6 +418,41 @@ int ConfigParamsRead(SYSCONFIG* sp)
 // Helper Functions
 //*****************************************************************************
 
+#if 1
+int GetHexStr(char* textbuf, uint8_t* databuf, int datalen)
+{
+    char *p = textbuf;
+    uint8_t *d;
+    uint32_t i;
+    int32_t l;
+
+    const uint32_t wordSize = 4;
+
+    /* Null output text buffer initially */
+    *textbuf = 0;
+
+    /* Make sure buffer length is not zero */
+    if (!datalen)
+        return 0;
+
+    /* Read data bytes in reverse order so we print most significant byte first */
+    d = databuf + (datalen-1);
+
+    for (i=0; i < datalen; i++)
+    {
+        l = sprintf(p, "%02X", *d--);
+        p += l;
+
+        if (((i % wordSize) == (wordSize-1)) && (i != (datalen-1)))
+        {
+            l = sprintf(p, "-");
+            p += l;
+        }
+    }
+
+    return strlen(textbuf);
+}
+#else
 int GetHexStr(char* textbuf, uint8_t* databuf, int datalen)
 {
     char fmt[8];
@@ -443,6 +478,7 @@ int GetHexStr(char* textbuf, uint8_t* databuf, int datalen)
 
     return strlen(textbuf);
 }
+#endif
 
 //*****************************************************************************
 //
