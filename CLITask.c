@@ -670,6 +670,7 @@ void cmd_mac(int argc, char *argv[])
 
 void cmd_time(int argc, char *argv[])
 {
+    char buf[16];
     RTCC_Struct ts;
 
     if (argc == 0)
@@ -678,8 +679,9 @@ void cmd_time(int argc, char *argv[])
             return;
 
         RTC_GetDateTime(&ts);
+        RTC_GetTimeStr(&ts, buf);
 
-        CLI_printf("Current time: %d:%02d:%02d\n", ts.hour, ts.min, ts.sec);
+        CLI_printf("Current time: %s\n", buf);
     }
     else if (argc == 3)
     {
