@@ -134,6 +134,7 @@ Void tcpModbusHandler(UArg arg0, UArg arg1)
         Task_Params_init(&taskParams);
 
         taskParams.arg0      = (UArg)clientfd;
+        taskParams.priority  = 10;
         taskParams.stackSize = 1280;
 
         if ((taskHandle = Task_create((Task_FuncPtr)tcpModbusWorker, &taskParams, &eb)) == NULL)

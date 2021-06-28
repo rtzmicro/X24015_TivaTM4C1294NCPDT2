@@ -40,6 +40,7 @@
 #include <xdc/cfg/global.h>
 #include <xdc/runtime/Error.h>
 #include <xdc/runtime/System.h>
+#include <xdc/runtime/Memory.h>
 
 /* BIOS Header files */
 #include <ti/sysbios/BIOS.h>
@@ -63,6 +64,8 @@
 #include "Utils.h"
 #include "XMODTCP.h"
 
+/*** Structures and Constants ***/
+
 #define TCPPACKETSIZE   256
 #define MAX_WORKERS     3
 
@@ -74,12 +77,7 @@
 #define TCPHANDLERSTACK 1024
 #endif
 
-/*** External Data Items ***/
-
-extern SYSDATA g_sys;
-extern SYSCONFIG g_cfg;
-
-/*** Prototypes ***/
+/*** Function Prototypes ***/
 
 void netOpenHook(void);
 
@@ -87,6 +85,7 @@ static Void tcpHandler(UArg arg0, UArg arg1);
 static Void tcpWorker(UArg arg0, UArg arg1);
 static int TcpRecv(int fd, void *pbuf, int size, int flags);
 static int TcpSend(int fd, void *pbuf, int size, int flags);
+static int SendReply(int fd, XMOD_MSG_HDR* hdr);
 
 /*** External Function Prototypes ***/
 extern void NtIPN2Str(uint32_t IPAddr, char *str);
@@ -122,7 +121,6 @@ void netIPUpdate(unsigned int IPAddr, unsigned int IfIdx, unsigned int fAdd)
     System_flush();
 }
 
-
 /* This function performs a blocked read for 'size' number of bytes. It will
  * continue to read until all bytes are read, or return if an error occurs.
  */
@@ -137,10 +135,7 @@ int TcpRecv(int fd, void *pbuf, int size, int flags)
     do {
 
         if ((bytesRcvd = recv(fd, buf, bytesToRecv, flags)) <= 0)
-        {
-            System_printf("Error: TCP recv failed %d.\n", bytesRcvd);
             break;
-        }
 
         bytesToRecv -= bytesRcvd;
 
@@ -165,10 +160,7 @@ int TcpSend(int fd, void *pbuf, int size, int flags)
     do {
 
         if ((bytesSent = send(fd, buf, bytesToSend, flags)) <= 0)
-        {
-            System_printf("Error: TCP send failed %d.\n", bytesSent);
             break;
-        }
 
         bytesToSend -= bytesSent;
 
@@ -201,7 +193,7 @@ void netOpenHook(void)
     Task_Params_init(&taskParams);
 
     taskParams.stackSize = TCPHANDLERSTACK;
-    taskParams.priority  = 1;
+    taskParams.priority  = 2;
     taskParams.arg0      = XMOD_TCP_PORT;
 
     taskHandle = Task_create((Task_FuncPtr)tcpHandler, &taskParams, &eb);
@@ -276,7 +268,9 @@ Void tcpHandler(UArg arg0, UArg arg1)
 
         /* Initialize the defaults and set the parameters. */
         Task_Params_init(&taskParams);
-        taskParams.arg0 = (UArg)clientfd;
+
+        taskParams.arg0      = (UArg)clientfd;
+        taskParams.priority  = 10;
         taskParams.stackSize = 1280;
 
         taskHandle = Task_create((Task_FuncPtr)tcpWorker, &taskParams, &eb);
@@ -304,111 +298,134 @@ shutdown:
 // Task to handle TCP connection. Can be multiple Tasks running this function.
 //*****************************************************************************
 
-static int cmd_adc_get_config(XMOD_CMD_HDR* hdr, XMOD_ADC_GET_CONFIG* msg);
-static int cmd_adc_read_data(XMOD_CMD_HDR* hdr, XMOD_ADC_READ_DATA* msg);
-
+static int op_adc_get_config(int fd, XMOD_ADC_GET_CONFIG* msg);
+static int op_adc_read_data(int fd, XMOD_ADC_READ_DATA* msg);
 
 Void tcpWorker(UArg arg0, UArg arg1)
 {
-    int  fd = (int)arg0;
-    int  bytesRcvd;
-    int  bytesSent;
-    int  bytesToSend;
+    int fd = (int)arg0;
+    int bytesRcvd;
+    int status;
+    uint16_t length;
+    XMOD_MSG_HDR* msg;
+    Error_Block eb;
 
-    struct packet {
-        XMOD_CMD_HDR hdr;
-        uint8_t      data[TCPPACKETSIZE];
-    } buf;
+    Error_init(&eb);
+
+    msg = Memory_alloc(NULL, TCPPACKETSIZE, NULL, &eb);
 
     System_printf("tcpWorker: start fd = 0x%x\n", fd);
 
-    while (1)
-    {
+   while(true)
+   {
         /* Read the command message header */
-        bytesRcvd = TcpRecv(fd, &buf.hdr, sizeof(XMOD_CMD_HDR), 0);
+        bytesRcvd = TcpRecv(fd, msg, sizeof(XMOD_MSG_HDR), 0);
 
-        if (bytesRcvd <= 0)
-            break;
-
-        /* Validate the command message header length */
-        if (buf.hdr.hdrlen != sizeof(XMOD_CMD_HDR))
+        if ((bytesRcvd <= 0) || (msg->length < sizeof(XMOD_MSG_HDR)))
         {
-            System_printf("tcpWorker: invalid header size %x\n", buf.hdr.hdrlen);
+            status = -100;
             break;
         }
 
-        /* If any trailing request data after header, read it to */
-        if (buf.hdr.datalen)
-        {
-            if (buf.hdr.datalen > TCPPACKETSIZE)
-            {
-                System_printf("tcpWorker: packet size overflow! %x\n", buf.hdr.datalen);
-                break;
-            }
+        /* Get length of message plus header */
+        length = msg->length;
 
-            bytesRcvd = TcpRecv(fd, &buf.data, buf.hdr.datalen, 0);
+        /* If larger than our buffer, exit and close connection */
+        if (msg->length > TCPPACKETSIZE)
+        {
+            System_printf("tcpWorker: packet size overflow! %d\n", msg->length);
+            status = -102;
+            break;
+        }
+
+        /* If there is any packet data following the header, read it to */
+        if (length > sizeof(XMOD_MSG_HDR))
+        {
+            uint8_t* buf = (uint8_t*)msg + sizeof(XMOD_MSG_HDR);
+
+            /* Now, read any data trailing the header */
+            bytesRcvd = TcpRecv(fd, buf, length - sizeof(XMOD_MSG_HDR), 0);
 
             if (bytesRcvd <= 0)
+            {
+                status = -103;
                 break;
+            }
         }
 
         /* Now validate and process the command request */
 
-        switch(buf.hdr.command)
+        status = 0;
+
+        switch(msg->opcode)
         {
-        case XMOD_CMD_ADC_GET_CONFIG:
-            bytesToSend = cmd_adc_get_config(&buf.hdr, (XMOD_ADC_GET_CONFIG*)&buf.data);
+        case XOP_ADC_GET_CONFIG:
+            status = op_adc_get_config(fd, (XMOD_ADC_GET_CONFIG*)msg);
             break;
 
-        case XMOD_CMD_ADC_READ_DATA:
-            bytesToSend = cmd_adc_read_data(&buf.hdr, (XMOD_ADC_READ_DATA*)&buf.data);
+        case XOP_ADC_READ_DATA:
+            status = op_adc_read_data(fd, (XMOD_ADC_READ_DATA*)msg);
             break;
 
         default:
-            buf.hdr.status = (uint16_t)-1;
-            bytesToSend = 0;
+            /* Unknown command, close the connection */
+            status = -104;
             break;
         }
 
-        /* The reply message data size */
-        buf.hdr.datalen = bytesToSend;
-        buf.hdr.hdrlen  = sizeof(XMOD_CMD_HDR);
-
-        /* Send header and any reply data */
-        bytesToSend += sizeof(XMOD_CMD_HDR);
-
-        /* Send the message header and reply data to the client */
-        bytesSent = TcpSend(fd, &buf, bytesToSend, 0);
-
-        if (bytesSent < 0 || bytesSent != bytesToSend)
-        {
-            System_printf("Error: send failed.\n");
+        if (status <= 0)
             break;
-        }
     }
 
-    System_printf("tcpWorker stop fd = 0x%x\n", fd);
+    System_printf("tcpWorker exiting %d\n", status);
+    System_flush();
 
+    /* Close the network handle */
     close(fd);
+
+    /* Free the packet memory buffer */
+    Memory_free(NULL, msg, sizeof(XMOD_MSG_HDR));
+}
+
+//*****************************************************************************
+// Send the client reply message.
+//*****************************************************************************
+
+int SendReply(int fd, XMOD_MSG_HDR* hdr)
+{
+    int bytesSent;
+    int bytesToSend = hdr->length;
+
+    /* Send the message header and reply data to the client */
+    bytesSent = TcpSend(fd, hdr, bytesToSend, 0);
+
+    if ((bytesSent <= 0) || (bytesSent != bytesToSend))
+        return -1;
+
+    return bytesSent;
 }
 
 //*****************************************************************************
 // Client command request handlers
 //*****************************************************************************
 
-int cmd_adc_get_config(XMOD_CMD_HDR* hdr, XMOD_ADC_GET_CONFIG* msg)
+int op_adc_get_config(int fd, XMOD_ADC_GET_CONFIG* msg)
 {
+    msg->hdr.opcode   = XOP_ADC_GET_CONFIG;
+    msg->hdr.length   = sizeof(XMOD_ADC_GET_CONFIG);
+
     msg->adc_channels = (uint8_t)g_sys.adcChannels;
     msg->adc_id       = (uint8_t)g_sys.adcID;
 
-    hdr->status = 0;
-
-    return sizeof(XMOD_ADC_GET_CONFIG);
+    return SendReply(fd, &(msg->hdr));
 }
 
-int cmd_adc_read_data(XMOD_CMD_HDR* hdr, XMOD_ADC_READ_DATA* msg)
+int op_adc_read_data(int fd, XMOD_ADC_READ_DATA* msg)
 {
     int i;
+
+    msg->hdr.opcode   = XOP_ADC_READ_DATA;
+    msg->hdr.length   = sizeof(XMOD_ADC_READ_DATA);
 
     for (i=0; i < XMOD_ADC_CHANNELS; i++)
     {
@@ -418,7 +435,5 @@ int cmd_adc_read_data(XMOD_CMD_HDR* hdr, XMOD_ADC_READ_DATA* msg)
         msg->adc_data[i] = (uint8_t)g_sys.adcData[i];
     }
 
-    hdr->status = 0;
-
-    return sizeof(XMOD_ADC_READ_DATA);
+    return SendReply(fd, &(msg->hdr));
 }
