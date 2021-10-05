@@ -173,6 +173,7 @@ static void _perror(FRESULT res);
 static char* _getcwd(void);
 static FRESULT _dirlist(char* path);
 static FRESULT _checkcmd(FRESULT res);
+static void xmodem_get_error(int err, char* buf, int bufsize);
 
 //*****************************************************************************
 // Initialize the UART and open the tty serial port.
@@ -909,6 +910,7 @@ void cmd_copy(int argc, char *argv[])
 void cmd_xmdm(int argc, char *argv[])
 {
     int rc = 0;
+    char errmsg[24];
     FIL fp;
     FRESULT res = FR_OK;
 
@@ -941,7 +943,9 @@ void cmd_xmdm(int argc, char *argv[])
                 /* Delete the file, it's not valid */
                 f_unlink(argv[1]);
 
-                CLI_printf("\r%s\rReceive Error %d\n", eraseEOL, rc);
+                xmodem_get_error(rc, errmsg, sizeof(errmsg));
+
+                CLI_printf("\r%s\rReceive Error %d: %s\n", eraseEOL, rc, errmsg);
             }
             else
             {
@@ -967,7 +971,9 @@ void cmd_xmdm(int argc, char *argv[])
 
             if (rc != XMODEM_SUCCESS)
             {
-                CLI_printf("\r%s\rSend Error %d\n", eraseEOL, rc);
+                xmodem_get_error(rc, errmsg, sizeof(errmsg));
+
+                CLI_printf("\r%s\rSend Error %d: %s\n", eraseEOL, rc, errmsg);
             }
             else
             {
@@ -984,5 +990,44 @@ void cmd_xmdm(int argc, char *argv[])
         CLI_printf("Invalid Option\n");
     }
 }
+
+void xmodem_get_error(int err, char* buf, int bufsize)
+{
+    switch(err)
+    {
+    case XMODEM_SUCCESS:
+        snprintf(buf, bufsize, "success");
+        break;
+
+    case XMODEM_NO_RESPONSE:
+        snprintf(buf, bufsize, "no response");
+        break;
+
+    case XMODEM_TIMEOUT:
+        snprintf(buf, bufsize, "timeout");
+        break;
+
+    case XMODEM_CANCEL:
+        snprintf(buf, bufsize, "cancel");
+        break;
+
+    case XMODEM_MAX_RETRIES:
+        snprintf(buf, bufsize, "max retries");
+        break;
+
+    case XMODEM_FILE_WRITE:
+        snprintf(buf, bufsize, "file write error");
+        break;
+
+    case XMODEM_FILE_READ:
+        snprintf(buf, bufsize, "file read error");
+        break;
+
+    default:
+        snprintf(buf, bufsize, "error=%d", err);
+        break;
+    }
+}
+
 
 // End-Of-File

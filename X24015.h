@@ -14,13 +14,13 @@
 // CONSTANTS AND CONFIGURATION
 //*****************************************************************************
 
-#define SD_DRIVE_NUM        0           /* SD disk drive number */
+/* There's only one SD drive in the system, so this is always zero */
+#define SD_DRIVE_NUM        0
 
 /* This enables the DIVSCLK output pin on PQ4 and generates a clock signal
  * from the main cpu clock divided by 'div' parameter. A value of 100 gives
  * a clock of 1.2 Mhz.
  */
-
 #define DIV_CLOCK_ENABLED   0
 
 /* VERSION INFO - The min build specifies the minimum build required
@@ -42,13 +42,6 @@
 
 #define MAGIC               0xCEB0FACE  /* magic number for EEPROM data */
 #define MAKEREV(v, r)       ((v << 16) | (r & 0xFFFF))
-
-//#define ADC_MAX_CHANNELS    8
-
-#define ADC_VREF            4.096f
-#define ADC_ERROR           0xFFFFFFFF
-
-#define CELCIUS_TO_FAHRENHEIT(c)    ((float)c * 1.8f + 32.0f)
 
 //*****************************************************************************
 //GLOBAL RUN-TIME DATA

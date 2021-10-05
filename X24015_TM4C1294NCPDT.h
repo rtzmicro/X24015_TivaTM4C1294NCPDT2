@@ -62,21 +62,12 @@ extern "C" {
 #define AT24MAC_EPROM_ADDR      (0xA0 >> 1)
 #define AT24MAC_EPROM_EXT_ADDR  (0xB0 >> 1)
 
-/* Push button switch bits on Port-N */
-#define B_BTN_SW1		0x01
-#define B_BTN_SW2		0x02
-#define B_BTN_SW3		0x04
-#define B_BTN_SW4		0x08
-#define B_BTN_SW5		0x10
-#define B_BTN_SW6		0x20
-
 /*!
  *  @def    X24015_EMACName
  *  @brief  Enum of EMAC names on the X24015 dev board
  */
 typedef enum X24015_EMACName {
     X24015_EMAC0 = 0,
-
     X24015_EMACCOUNT
 } X24015_EMACName;
 
@@ -108,7 +99,6 @@ typedef enum X24015_GPIOName {
     X24015_GPIO_PP2,
     X24015_GPIO_PP3,
     X24015_GPIO_PQ4,
-
     X24015_GPIOCOUNT
 } X24015_GPIOName;
 
@@ -121,7 +111,6 @@ typedef enum X24015_I2CName {
     X24015_I2C1,
     X24015_I2C2,
     X24015_I2C3,
-
     X24015_I2CCOUNT
 } X24015_I2CName;
 
@@ -142,7 +131,6 @@ typedef enum X24015_PWMName {
  */
 typedef enum X24015_SDSPIName {
     X24015_SDSPI0 = 0,		/* SD Card Socket */
-
     X24015_SDSPICOUNT
 } X24015_SDSPIName;
 
@@ -154,7 +142,6 @@ typedef enum X24015_SPIName {
     X24015_SPI0 = 0,
     X24015_SPI2,
     X24015_SPI3,
-
     X24015_SPICOUNT
 } X24015_SPIName;
 
@@ -167,7 +154,6 @@ typedef enum X24015_UARTName {
     X24015_UART3,
     X24015_UART5,
     X24015_UART7,
-
     X24015_UARTCOUNT
 } X24015_UARTName;
 
@@ -186,7 +172,6 @@ typedef enum X24015_USBMode {
  */
 typedef enum X24015_USBMSCHFatFsName {
     X24015_USBMSCHFatFs0 = 0,
-
     X24015_USBMSCHFatFsCOUNT
 } X24015_USBMSCHFatFsName;
 
@@ -196,7 +181,6 @@ typedef enum X24015_USBMSCHFatFsName {
  */
 typedef enum X24015_WatchdogName {
     X24015_WATCHDOG0 = 0,
-
     X24015_WATCHDOGCOUNT
 } X24015_WatchdogName;
 
@@ -206,7 +190,6 @@ typedef enum X24015_WatchdogName {
  */
 typedef enum X24015_WiFiName {
     X24015_WIFI = 0,
-
     X24015_WIFICOUNT
 } X24015_WiFiName;
 

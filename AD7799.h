@@ -1,3 +1,41 @@
+/** ============================================================================
+ *  @file       AD7799.h
+ *
+ *  @brief      AD7799 driver interface
+ *
+ *  The AD7799 header file should be included in an application as follows:
+ *  @code
+ *  #include <AD7799.h>
+ *  @endcode
+ *
+ *  # Operation #
+ *  This example module allows an application to read from/write to a AD7799
+ *  device. The full functionality of the device has not be implemented (please
+ *  refer to Enhancements below).
+ *
+ *  The APIs are thread-safe. Two tasks can write/read to the same device safely.
+ *  This is accomplished with a GateMutex in the implementation.
+
+ *  ## Creating an instance #
+ *  @code
+ *  SPI_Params spiParams;
+ *  SPI_Handle spiHandle;
+ *  AD7799_Params ad7799Params;
+ *  AD7799_Object obj;
+ *  AD7799_Handle ad7799Handle;
+ *  volatile uint8_t ready;
+ *
+ *  SPI_Params_init(&spiParams);
+ *  spiHandle = SPI_open(Board_SPI0, &spiParams);
+ *
+ *  AD7799_Params_init(&ad7799Params);
+ *  ad7799Handle = AD7799_create(spiHandle, Board_CS, &ad7799Params);
+ *  if (!handle) {
+ *      System_printf("AD7799_create failed");
+ *  }
+ *  @endcode
+ */
+
 /***************************************************************************//**
  *   @file   AD7799.h
  *   @brief  Header file of AD7799 Driver.
@@ -140,44 +178,6 @@
 #define AD7799_IOEN			(1 << 6)
 #define AD7799_IO1(x)		(((x) & 0x1) << 4)
 #define AD7799_IO2(x)		(((x) & 0x1) << 5)
-
-/** ============================================================================
- *  @file       AD7799.h
- *
- *  @brief      AD7799 driver interface
- *
- *  The AD7799 header file should be included in an application as follows:
- *  @code
- *  #include <AD7799.h>
- *  @endcode
- *
- *  # Operation #
- *  This example module allows an application to read from/write to a AD7799
- *  device. The full functionality of the device has not be implemented (please
- *  refer to Enhancements below).
- *
- *  The APIs are thread-safe. Two tasks can write/read to the same device safely.
- *  This is accomplished with a GateMutex in the implementation.
-
- *  ## Creating an instance #
- *  @code
- *  SPI_Params spiParams;
- *  SPI_Handle spiHandle;
- *  AD7799_Params ad7799Params;
- *  AD7799_Object obj;
- *  AD7799_Handle ad7799Handle;
- *  volatile uint8_t ready;
- *
- *  SPI_Params_init(&spiParams);
- *  spiHandle = SPI_open(Board_SPI0, &spiParams);
- *
- *  AD7799_Params_init(&ad7799Params);
- *  ad7799Handle = AD7799_create(spiHandle, Board_CS, &ad7799Params);
- *  if (!handle) {
- *      System_printf("AD7799_create failed");
- *  }
- *  @endcode
- */
 
 /*!
  *  @brief AD7799 Parameters

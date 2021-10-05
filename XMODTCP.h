@@ -18,12 +18,12 @@
  * TCP/IP Port Numbers for XMOD TCP server
  ***************************************************************************/
 
-#define XMOD_TCP_PORT       5240        /* xmod tcp port number */
+#define XMOD_TCP_PORT       6540        /* xmod tcp port number */
 
 #define XMOD_ADC_CHANNELS   8           /* max ADC channels */
 
 /***************************************************************************
- * XMOD COMMAND/RESPONSE Messages
+ * XMOD Message Header and Command/Request Op-Codes
  ***************************************************************************/
 
  /* Command Message Types for 'XMOD_CMD_HDR.command' */
@@ -38,14 +38,18 @@ typedef struct _XMOD_MSG_HDR {
     uint16_t        length;             /* size of header+msg structure  */
 } XMOD_MSG_HDR;
 
-/* XMOD_OP_ADC_GET_CONFIG - Read the ADC configuration */
+/***************************************************************************
+ * XMOD COMMAND/RESPONSE Messages
+ ***************************************************************************/
+
+/* XOOP_ADC_GET_CONFIG - Read the ADC configuration */
 typedef struct _XMOD_ADC_GET_CONFIG {
     XMOD_MSG_HDR    hdr;
     uint8_t         adc_id;             /* ADC ID 16 or 24 bit        */
     uint8_t         adc_channels;       /* num of ADC channels active */
 } XMOD_ADC_GET_CONFIG;
 
-/* XMOD_OP_ADC_READ_DATA - Read all channels of ADC Data */
+/* XOP_ADC_READ_DATA - Read all channels of ADC Data */
 typedef struct _XMOD_ADC_READ_DATA {
     XMOD_MSG_HDR    hdr;
     uint32_t        adc_data[XMOD_ADC_CHANNELS];

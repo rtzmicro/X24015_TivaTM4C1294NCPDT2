@@ -121,56 +121,6 @@ void netIPUpdate(unsigned int IPAddr, unsigned int IfIdx, unsigned int fAdd)
     System_flush();
 }
 
-/* This function performs a blocked read for 'size' number of bytes. It will
- * continue to read until all bytes are read, or return if an error occurs.
- */
-
-int TcpRecv(int fd, void *pbuf, int size, int flags)
-{
-    int bytesRcvd = 0;
-    int bytesToRecv = size;
-
-    uint8_t* buf = (uint8_t*)pbuf;
-
-    do {
-
-        if ((bytesRcvd = recv(fd, buf, bytesToRecv, flags)) <= 0)
-            break;
-
-        bytesToRecv -= bytesRcvd;
-
-        buf += bytesRcvd;
-
-    } while(bytesToRecv > 0);
-
-    return bytesRcvd;
-}
-
-/* This function performs a blocked write for 'size' number of bytes. It will
- * continue to write until all bytes are sent, or return if an error occurs.
- */
-
-int TcpSend(int fd, void *pbuf, int size, int flags)
-{
-    int bytesSent = 0;
-    int bytesToSend = size;
-
-    uint8_t* buf = (uint8_t*)pbuf;
-
-    do {
-
-        if ((bytesSent = send(fd, buf, bytesToSend, flags)) <= 0)
-            break;
-
-        bytesToSend -= bytesSent;
-
-        buf += bytesSent;
-
-    } while (bytesToSend > 0);
-
-    return bytesSent;
-}
-
 //*****************************************************************************
 // This handler is called when the network is opened. Start up the
 // TCP listener task on the port number passed in the arg list.
@@ -193,7 +143,7 @@ void netOpenHook(void)
     Task_Params_init(&taskParams);
 
     taskParams.stackSize = TCPHANDLERSTACK;
-    taskParams.priority  = 2;
+    taskParams.priority  = 1;
     taskParams.arg0      = XMOD_TCP_PORT;
 
     taskHandle = Task_create((Task_FuncPtr)tcpHandler, &taskParams, &eb);
@@ -244,6 +194,7 @@ Void tcpHandler(UArg arg0, UArg arg1)
 
     if (status == -1) {
         System_printf("Error: bind failed.\n");
+        System_flush();
         goto shutdown;
     }
 
@@ -251,17 +202,20 @@ Void tcpHandler(UArg arg0, UArg arg1)
 
     if (status == -1) {
         System_printf("Error: listen failed.\n");
+        System_flush();
         goto shutdown;
     }
 
     if (setsockopt(server, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
         System_printf("Error: setsockopt failed\n");
+        System_flush();
         goto shutdown;
     }
 
     while ((clientfd = accept(server, (struct sockaddr *)&clientAddr, &addrlen)) != -1) {
 
         System_printf("tcpHandler: Creating thread clientfd = %d\n", clientfd);
+        System_flush();
 
         /* Init the Error_Block */
         Error_init(&eb);
@@ -270,13 +224,14 @@ Void tcpHandler(UArg arg0, UArg arg1)
         Task_Params_init(&taskParams);
 
         taskParams.arg0      = (UArg)clientfd;
-        taskParams.priority  = 10;
+        taskParams.priority  = 2;
         taskParams.stackSize = 1280;
 
         taskHandle = Task_create((Task_FuncPtr)tcpWorker, &taskParams, &eb);
 
         if (taskHandle == NULL) {
             System_printf("Error: Failed to create new Task\n");
+            System_flush();
             close(clientfd);
         }
 
@@ -285,6 +240,7 @@ Void tcpHandler(UArg arg0, UArg arg1)
     }
 
     System_printf("Error: accept failed.\n");
+    System_flush();
 
 shutdown:
     if (server > 0) {
@@ -292,6 +248,56 @@ shutdown:
     }
 
     fdClose(hSelf);
+}
+
+/* This function performs a blocked write for 'size' number of bytes. It will
+ * continue to write until all bytes are sent, or return if an error occurs.
+ */
+
+int TcpSend(int fd, void *pbuf, int size, int flags)
+{
+    int bytesSent = 0;
+    int bytesToSend = size;
+
+    uint8_t* buf = (uint8_t*)pbuf;
+
+    do {
+
+        if ((bytesSent = send(fd, buf, bytesToSend, flags)) <= 0)
+            break;
+
+        bytesToSend -= bytesSent;
+
+        buf += bytesSent;
+
+    } while (bytesToSend > 0);
+
+    return bytesSent;
+}
+
+/* This function performs a blocked read for 'size' number of bytes. It will
+ * continue to read until all bytes are read, or return if an error occurs.
+ */
+
+int TcpRecv(int fd, void *pbuf, int size, int flags)
+{
+    int bytesRcvd = 0;
+    int bytesToRecv = size;
+
+    uint8_t* buf = (uint8_t*)pbuf;
+
+    do {
+
+        if ((bytesRcvd = recv(fd, buf, bytesToRecv, flags)) <= 0)
+            break;
+
+        bytesToRecv -= bytesRcvd;
+
+        buf += bytesRcvd;
+
+    } while(bytesToRecv > 0);
+
+    return bytesRcvd;
 }
 
 //*****************************************************************************
@@ -310,18 +316,22 @@ Void tcpWorker(UArg arg0, UArg arg1)
     XMOD_MSG_HDR* msg;
     Error_Block eb;
 
+    Task_Handle hSelf = Task_self();
+    fdOpenSession(hSelf);
+
     Error_init(&eb);
 
     msg = Memory_alloc(NULL, TCPPACKETSIZE, NULL, &eb);
 
     System_printf("tcpWorker: start fd = 0x%x\n", fd);
+    System_flush();
 
-   while(true)
-   {
+    GPIO_write(Board_LED_ALM, PIN_HIGH);
+
+    while(true)
+    {
         /* Read the command message header */
-        bytesRcvd = TcpRecv(fd, msg, sizeof(XMOD_MSG_HDR), 0);
-
-        if ((bytesRcvd <= 0) || (msg->length < sizeof(XMOD_MSG_HDR)))
+        if ((bytesRcvd = TcpRecv(fd, msg, sizeof(XMOD_MSG_HDR), 0)) <= 0)
         {
             status = -100;
             break;
@@ -331,16 +341,17 @@ Void tcpWorker(UArg arg0, UArg arg1)
         length = msg->length;
 
         /* If larger than our buffer, exit and close connection */
-        if (msg->length > TCPPACKETSIZE)
+        if ((msg->length > TCPPACKETSIZE) || (msg->length < sizeof(XMOD_MSG_HDR)))
         {
-            System_printf("tcpWorker: packet size overflow! %d\n", msg->length);
-            status = -102;
-            break;
+            System_printf("tcpWorker: invalid packet size! %d\n", msg->length);
+            System_flush();
+            continue;
         }
 
         /* If there is any packet data following the header, read it to */
         if (length > sizeof(XMOD_MSG_HDR))
         {
+            /* Get pointer to message buffer just after header */
             uint8_t* buf = (uint8_t*)msg + sizeof(XMOD_MSG_HDR);
 
             /* Now, read any data trailing the header */
@@ -377,7 +388,7 @@ Void tcpWorker(UArg arg0, UArg arg1)
             break;
     }
 
-    System_printf("tcpWorker exiting %d\n", status);
+    System_printf("tcpWorker: exit %d\n", status);
     System_flush();
 
     /* Close the network handle */
@@ -385,6 +396,10 @@ Void tcpWorker(UArg arg0, UArg arg1)
 
     /* Free the packet memory buffer */
     Memory_free(NULL, msg, sizeof(XMOD_MSG_HDR));
+
+    fdClose(hSelf);
+
+    GPIO_write(Board_LED_ALM, PIN_LOW);
 }
 
 //*****************************************************************************

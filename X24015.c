@@ -97,6 +97,8 @@ SYSDATA     g_sys;      /* Global system variables and data storage */
 #define ADC_NUM_CONVERTERS          (ADC_NUM_CARDS * ADC_CONVERTERS_PER_CARD)
 #define ADC_NUM_CHANNELS            (ADC_NUM_CARDS * ADC_CHANNELS_PER_CARD)
 
+#define ADC_ERROR                   0xFFFFFFFF
+
 /* Each 24035 ADC card has two converters, each with it's own chip
  * select, and provides a total of four ADC channels per card.
  */
@@ -469,6 +471,7 @@ bool Init_Devices(void)
      * Step 1 - Read the globally unique serial number from EPROM. We are also
      * reading the 6-byte MAC address from the AT24MAC serial EPROM.
      */
+
     if (!ReadGUIDS(g_sys.i2c0, g_sys.ui8SerialNumber, g_sys.ui8MAC))
     {
         System_printf("MAC & Serial# Read Failed!\n");
@@ -521,6 +524,8 @@ AD7799_Handle ADC_AllocConverter(SPI_Handle spiHandle, uint32_t gpioCSIndex)
 
             /* Set for unipolar data reading */
             AD7799_SetUnipolar(handle, AD7799_UNIPOLAR_ENA);
+
+            g_sys.adcChannels += 2;
         }
     }
 
@@ -603,7 +608,7 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
         size_t i;
 
         /* Turn on ALM LED if system error detected */
-        GPIO_write(Board_LED_ALM, (GetLastError() != XSYSERR_SUCCESS) ? PIN_HIGH : PIN_LOW);
+        //GPIO_write(Board_LED_ALM, (GetLastError() != XSYSERR_SUCCESS) ? PIN_HIGH : PIN_LOW);
 
         /* If the ADC's were found and active, then poll each ADC for data */
         if (g_sys.adcID)

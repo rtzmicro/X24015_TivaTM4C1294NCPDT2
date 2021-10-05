@@ -1,46 +1,44 @@
-/*
- * XMODEM	Simple XMODEM file transfer driver, implementing several
- *		variations of the X/MODEM protocol.  The code was written
- *		with the 10/14/88 version of Forsberg's specification in
- *		hand.  It is believed to be a correct implementation.
+/* ============================================================================
  *
- *		The YMODEM support code (which is used by YMODEM and the
- *		XMODEM-Batch variations of the protocol) is not always
- *		needed, so it can be disabled.
+ * DTC-1200 & STC-1200 Digital Transport Controllers for
+ * Ampex MM-1200 Tape Machines
  *
- * TODO:	Test with timeouts, and see if we can automate the choice
- *		of protocol in the receiver.  As Forsberg suggests, we 
- *		can send out C's for a while, and, if that fails, switch
- *		to NAK's for the basic protocol.
+ * Copyright (C) 2016-2020, RTZ Professional Audio, LLC
+ * All Rights Reserved
  *
- * Version:	@(#)xmodem.c	1.0.1	2007/12/02
+ * RTZ is registered trademark of RTZ Professional Audio, LLC
  *
- * Author:	Fred N. van Kempen, <fred.van.kempen@microwalt.nl>
+ * ============================================================================
  *
- *		Copyright 2007 MicroWalt Corporation.
- *		All Rights Reserved.
+ * Copyright (c) 2014, Texas Instruments Incorporated
+ * All rights reserved.
  *
- *		This  program  or  documentation  contains  proprietary
- *		confidential information and trade secrets of MicroWalt
- *		Corporation.  Reverse  engineering of  object  code  is
- *		prohibited.  Use of copyright  notice is  precautionary
- *		and does not imply publication.  Any  unauthorized use,
- *		reproduction  or transfer  of this program  is strictly
- *		prohibited.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
  *
- *		RESTRICTED RIGHTS NOTICE
+ * *  Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
  *
- *		Use, duplication, or disclosure  by the U.S. Government
- *		is subject to restrictions as set  forth in subdivision
- *		(b)(3)(ii) of the Rights in Technical Data and Computer
- *		Software clause at 252.227-7013.
+ * *  Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
  *
- *		MicroWalt Corporation
- *		P O BOX 8
- *		1400AA, BUSSUM, NH
- *		THE NETHERLANDS
- *		PH:  +31 (35) 7503090
- *		FAX: +31 (35) 7503091
+ * *  Neither the name of Texas Instruments Incorporated nor the names of
+ *    its contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /* XDCtools Header files */
@@ -85,23 +83,23 @@
 #include "board.h"
 
 /* Various definitions. */
-#define PKT_SIZE        128
-#define PKT_SIZE_1K     1024
+#define PKT_SIZE    128
+#define PKT_SIZE_1K 1024
 
-#define NUM_TRIES       21
-#define DEBUG_XMDM      0
+#define NUM_TRIES   21
+#define DEBUG_XMDM  0
 
 /* ASCII codes used in the protocol. */
-#define NUL             0x00
-#define SOH             0x01
-#define STX             0x02
-#define ETX             0x03
-#define EOT             0x04
-#define ACK             0x06
-#define NAK             0x15
-#define CAN             0x18
-#define SUB             0x1a    /* final packet filler value */
-#define CRC             'C'
+#define NUL         0x00
+#define SOH         0x01
+#define STX         0x02
+#define ETX         0x03
+#define EOT         0x04
+#define ACK         0x06
+#define NAK         0x15
+#define CAN         0x18
+#define SUB         0x1a    /* final packet filler value */
+#define CRC         'C'
 
 /* XMODEM Packet Buffer */
 static uint8_t      xmodem_buff[PKT_SIZE_1K];
@@ -114,9 +112,9 @@ uint32_t            xmodem_size;
  * Serial Interface Functions
  ******************************************************************************/
 
-static void uart_putc(UART_Handle handle, uint8_t ch)
+static int uart_putc(UART_Handle handle, uint8_t ch)
 {
-    UART_write(handle, &ch, 1);
+    return UART_write(handle, &ch, 1);
 }
 
 static void uart_flush(UART_Handle handle)
@@ -128,7 +126,7 @@ static void uart_flush(UART_Handle handle)
     {
         n = UART_read(handle, &ch, 1);
 
-        if (n == UART_ERROR)
+        if (n != 1)
             break;
     }
 }
@@ -214,7 +212,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
 {
     int i;
     int c;
-    int retry;
+    int try;
     int status;
     bool started = false;
     uint8_t b, d;
@@ -227,7 +225,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
 
     status = XMODEM_NO_RESPONSE;
 
-    for (retry=0; retry < 10; retry++)
+    for (try=0; try < 10; try++)
     {
         /* Send out a C and try to read reply */
         uart_putc(handle, CRC);
@@ -259,11 +257,11 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
         System_printf("Got SOH!\n");
         System_flush();
 #endif
-        retry = 0;
+        try = 0;
 
         while(true)
         {
-            if (retry > 5)
+            if (try > 5)
             {
                 uart_putc(handle, CAN);
                 uart_putc(handle, CAN);
@@ -314,7 +312,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
                     /* NAK to get sender to send again */
                     uart_putc(handle, NAK);
                     /* Loop and try to re-synchronize */
-                    ++retry;
+                    ++try;
                     continue;
                 }
             }
@@ -329,7 +327,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
                 System_flush();
 #endif
                 /* Loop and try to re-synchronize */
-                ++retry;
+                ++try;
                 continue;
             }
 
@@ -344,7 +342,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
                 System_flush();
 #endif
                 /* Loop and try to re-synchronize */
-                ++retry;
+                ++try;
                 continue;
             }
 
@@ -363,7 +361,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
                 /* NAK to get sender to send again */
                 uart_putc(handle, NAK);
                 /* Loop and try to re-synchronize */
-                ++retry;
+                ++try;
                 continue;
             }
 
@@ -385,12 +383,12 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
             if (i != 128)
             {
 #if DEBUG_XMDM
-                System_printf("SHORT BLOCKS %d!\n", i);
+                System_printf("SHORT BLOCK %d!\n", i);
                 System_flush();
 #endif
                 /* NAK to get sender to send again */
                 uart_putc(handle, NAK);
-                ++retry;
+                ++try;
                 continue;
             }
 
@@ -405,7 +403,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
                 uart_flush(handle);
                 /* NAK to get sender to send again */
                 uart_putc(handle, NAK);
-                ++retry;
+                ++try;
                 continue;
             }
 
@@ -422,7 +420,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
                 uart_flush(handle);
                 /* NAK to get sender to send again */
                 uart_putc(handle, NAK);
-                ++retry;
+                ++try;
                 continue;
             }
 
@@ -440,7 +438,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
                 uart_flush(handle);
                 /* NAK to get sender to send again */
                 uart_putc(handle, NAK);
-                ++retry;
+                ++try;
                 continue;
             }
 
@@ -470,7 +468,7 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
             GPIO_toggle(Board_LED_ACT);
 
             /* Block received successfully, reset retry counter */
-            retry = 0;
+            try = 0;
 
             /* Increment next expected block number */
             ++blknum;
@@ -480,8 +478,6 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
 #if DEBUG_XMDM
     System_printf("EXIT XMDM %d!\n", blknum);
     System_flush();
-#else
-    (void)res;
 #endif
 
     return status;
@@ -530,18 +526,19 @@ int xmodem_send(UART_Handle handle, FIL* fp)
             System_printf("Checksum Mode Requested\n");
             System_flush();
 #endif
+            crcmode = false;
             status = XMODEM_SUCCESS;
             break;
         }
 
-        /* Start of header received, start reading packet */
+        /* Start of header received, start sending packet */
         if (c == 'C')
         {
 #if DEBUG_XMDM
             System_printf("CRC Mode Requested\n", blknum);
             System_flush();
 #endif
-            crcmode = TRUE;
+            crcmode = true;
             status = XMODEM_SUCCESS;
             break;
         }
