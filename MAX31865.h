@@ -103,7 +103,7 @@
  * select. Otherwise, the callback function is called
  * and must handle controlling the chip select line.
  */
-typedef void (*fptr_chipsel)(void* param, bool assert);
+typedef void (*fptr_chipsel)(void* param1, void* param2, bool assert);
 
 /*!
  *  @brief MAX31865 Object
@@ -114,7 +114,8 @@ typedef struct MAX31865_Object {
     SPI_Handle      spiHandle;              /* SPI handle to MAX31865        */
     uint32_t        chipselect;             /* Single chip CS GPIO index     */
     fptr_chipsel    chipselect_proc;        /* Callback for multiplex CS use */
-    void*           chipselect_param;       /* parameter passed to callback  */
+    void*           chipselect_param1;      /* parameter passed to callback  */
+    void*           chipselect_param2;      /* parameter passed to callback  */
 #if (MAX31865_THREAD_SAFE > 0)
     GateMutex_Struct gate;                  /* Mutex for thread safe use     */
 #endif
@@ -152,7 +153,8 @@ typedef struct MAX31865_Params {
     uint8_t         configReg;
     uint32_t        chipselect;
     fptr_chipsel    chipselect_proc;
-    void*           chipselect_param;
+    void*           chipselect_param1;
+    void*           chipselect_param2;
 } MAX31865_Params;
 
 /*!

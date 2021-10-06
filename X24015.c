@@ -157,7 +157,7 @@ typedef struct _RTD_CHANNEL {
 } RTD_CHANNEL;
 
 typedef struct _RTD_CARD {
-    RTD_CHANNEL     channel[RTD_CHANNELS_PER_CARD];
+    RTD_CHANNEL     channels[RTD_CHANNELS_PER_CARD];
     MCP23S17_Handle handleIOX;      /* Handle of cards I/O expander */
     uint32_t        chipselIOX;     /* chip select for I/O expander */
 } RTD_CARD;
@@ -182,9 +182,15 @@ static RTD_CARD g_rtdCard[RTD_MAX_CARDS] = {
 
 static bool Init_Peripherals(void);
 static bool Init_Devices(void);
-static AD7799_Handle ADC_AllocConverter(SPI_Handle spiHandle, uint32_t gpioCSIndex);
+
+static uint32_t RTD_AllocCards(void);
+static float RTD_ReadChannel(uint32_t channel);
+static void MAX31865_ChipSelect_Proc(void* param1, void* param2, bool assert);
+
+static uint32_t ADC_AllocCards(void);
 static uint32_t ADC_ReadChannel(AD7799_Handle handle, uint32_t channel);
-int ReadGUIDS(I2C_Handle handle, uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6]);;
+
+static int ReadGUIDS(I2C_Handle handle, uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6]);;
 
 #if (DIV_CLOCK_ENABLED > 0)
 static void EnableClockDivOutput(uint32_t div);
@@ -221,7 +227,7 @@ int main(void)
     Board_initSPI();
     Board_initSDSPI();
     Board_initUART();
-    //Board_initUSB(Board_USBDEVICE);
+    Board_initUSB(Board_USBDEVICE);
     // Board_initWatchdog();
 
     /* Create task with priority 15 */
@@ -473,8 +479,6 @@ bool Init_Peripherals(void)
 
 bool Init_Devices(void)
 {
-    size_t i;
-
     /* Enable the LED's during startup up */
     GPIO_write(Board_LED_ACT, Board_LED_ON);
     GPIO_write(Board_LED_ALM, Board_LED_OFF);
@@ -505,16 +509,15 @@ bool Init_Devices(void)
         System_abort("MCP79410_create failed\n");
     }
 
-    /* Create and Initialize ADC Channels. Each card contains two ADC
-     * converters with separate chip selects for each. The chip selects
-     * must be predefined in the channel table. All of the ADC converters
-     * are mapped on SPI-3 with chip selects for each.
-     */
+    /* Allocate and probe for any ADC UV-C sensor cards */
+    g_sys.adcChannels = ADC_AllocCards();
 
-    for (i=0; i < ADC_NUM_CONVERTERS; i++)
-    {
-        g_adcConverter[i].handle = ADC_AllocConverter(g_sys.spi3, g_adcConverter[i].chipsel);
-    }
+    /* Allocate and probe for any RTD temp sensor cards */
+    g_sys.rtdChannels = RTD_AllocCards();
+
+    System_printf("%d 24035 ADC cards found\n", g_sys.adcChannels);
+    System_printf("%d 24035 RTD cards found\n", g_sys.rtdChannels);
+    System_flush();
 
     /* Prepare to initialize EMAC layer.
      * Step 1 - Read the globally unique serial number from EPROM. We are also
@@ -524,10 +527,10 @@ bool Init_Devices(void)
     if (!ReadGUIDS(g_sys.i2c0, g_sys.ui8SerialNumber, g_sys.ui8MAC))
     {
         System_printf("MAC & Serial# Read Failed!\n");
+        System_flush();
+
         SetLastError(XSYSERR_GUID_SERMAC);
     }
-
-    System_flush();
 
     /* Step 2 - Don't initialize EMAC layer until after reading MAC address above! */
     Board_initEMAC(g_sys.ui8MAC);
@@ -549,16 +552,10 @@ bool Init_Devices(void)
 // and initializes the RTD converters for use.
 //*****************************************************************************
 
-void MAX31865_ChipSelect_Proc(void* param, bool assert)
-{
-    RTD_CHANNEL *channel = (RTD_CHANNEL*)param;
-
-    uint8_t chipsel = channel->csMaskIOX;
-}
-
-MAX31865_Handle RTD_AllocCards(void)
+uint32_t RTD_AllocCards(void)
 {
     size_t i, n;
+    uint32_t channels = 0;
 
     for (n=0; n < RTD_NUM_CARDS; n++)
     {
@@ -572,7 +569,7 @@ MAX31865_Handle RTD_AllocCards(void)
         MCP23S17_Params paramsIOX;
         MCP23S17_Params_init(&paramsIOX);
 
-        /* Set the chip select for this I/O expander card */
+        /* Chip select to be used for this card's I/O expander */
         paramsIOX.gpioCSIndex = card->chipselIOX;
 
         /* Create the I/O expander object on SPI-0 for this card */
@@ -581,12 +578,12 @@ MAX31865_Handle RTD_AllocCards(void)
         Assert_isTrue((card->handleIOX != NULL), NULL);
 
         /*
-         * Create all the RTD channel objects for the card
+         * Create and initialize the RTD channel objects for this card
          */
 
         for (i=0; i < RTD_CHANNELS_PER_CARD; i++)
         {
-            RTD_CHANNEL *channel = &card->channel[i];
+            RTD_CHANNEL *channel = &card->channels[i];
 
             /* Initialize the RTD device object parameters */
             MAX31865_Params params;
@@ -600,8 +597,9 @@ MAX31865_Handle RTD_AllocCards(void)
             params.highFaultThreshold    = 0xFFFF;
             params.configReg             = 0;
             params.chipselect            = channel->csMaskIOX;
-            params.chipselect_param      = channel;
-            params.chipselect_proc       = NULL;
+            params.chipselect_param1     = card;
+            params.chipselect_param2     = channel;
+            params.chipselect_proc       = MAX31865_ChipSelect_Proc;
 
             /* Create the I/O expander object on SPI-2 for this card */
             channel->handleRTD = MAX31865_create(g_sys.spi2, &params);
@@ -611,36 +609,92 @@ MAX31865_Handle RTD_AllocCards(void)
             if (!MAX31865_init(channel->handleRTD))
             {
                 System_printf("MAX31865_init() failed\n");
-                SetLastError(XSYSERR_RTD_INIT);
+                System_flush();
             }
             else
             {
-                g_sys.rtdChannels += 1;
+                channels += 1;
             }
         }
     }
 
-    return 0;
+    return channels;
+}
+
+/* This function gets called for register read/write operations to a
+ * RTD card and sets the chip select output from the MCP23S17 to the
+ * RTD device. Only one chip select can be active at any given time and
+ * each RTD card has four MAX31865 RTD converters. Note the MCP23S17 is
+ * configured so the logic signals are inverted, thus setting an output
+ * register pin high drives the chip select low from the MCP23S17 i/o
+ * expander chip to assert the chip select.
+ */
+
+void MAX31865_ChipSelect_Proc(void* param1, void* param2, bool assert)
+{
+    RTD_CARD *card = (RTD_CARD*)param1;
+
+    RTD_CHANNEL *channel = (RTD_CHANNEL*)param2;
+
+    uint8_t mask = (assert) ? channel->csMaskIOX : 0;
+
+    MCP23S17_write(card->handleIOX, MCP_GPIOA, mask);
 }
 
 //*****************************************************************************
-// This allocates an ADC context for communication and initializes the ADC
-// converter for use. This is called for each ADC in the system (two per card).
+//
+//
 //*****************************************************************************
 
-AD7799_Handle ADC_AllocConverter(SPI_Handle spiHandle, uint32_t gpioCSIndex)
+float RTD_ReadChannel(uint32_t channel)
 {
+    float temp = 0.0f;
+
+    size_t card_index = channel / RTD_CHANNELS_PER_CARD;
+
+    if (card_index < RTD_CHANNELS_PER_CARD)
+    {
+        RTD_CARD *card = &g_rtdCard[card_index];
+
+        MAX31865_Handle handle = card->channels[channel % 4].handleRTD;
+
+        uint8_t status = MAX31865_readCelsius(handle, &temp);
+
+        if (status != MAX31865_ERR_SUCCESS)
+            temp = 0.0f;
+    }
+
+    return temp;
+}
+
+//*****************************************************************************
+// Create and Initialize ADC Channels. Each card contains two ADC must
+// be predefined in the channel table. All of the ADC converters are
+// are mapped on SPI-3 with chip selects for each.
+//*****************************************************************************
+
+uint32_t ADC_AllocCards(void)
+{
+    size_t i;
+    uint32_t channels = 0;
     AD7799_Handle handle;
 
-    if ((handle = AD7799_create(spiHandle, gpioCSIndex, NULL)) != NULL)
+    for (i=0; i < ADC_NUM_CONVERTERS; i++)
     {
+        /* Allocate an ADC object connected to SPI-3 for the 24035 ADC
+         * cards. These cards are always on SPI-3 with two gpio lines
+         * directly mapped to chip selects of each ADC on each card.
+         */
+        handle = AD7799_create(g_sys.spi3, g_adcConverter[i].chipsel, NULL);
+
+        Assert_isTrue((handle != NULL), NULL);
+
         AD7799_Reset(handle);
 
         if ((g_sys.adcID = AD7799_Init(handle)) == 0)
         {
-            System_printf("AD7799_Init(2) failed\n");
-
-            SetLastError(XSYSERR_ADC_INIT);
+            System_printf("AD7799_Init() failed\n");
+            System_flush();
         }
         else
         {
@@ -653,11 +707,14 @@ AD7799_Handle ADC_AllocConverter(SPI_Handle spiHandle, uint32_t gpioCSIndex)
             /* Set for unipolar data reading */
             AD7799_SetUnipolar(handle, AD7799_UNIPOLAR_ENA);
 
-            g_sys.adcChannels += 2;
+            channels += 2;
         }
+
+        /* Save the handle to the ADC object */
+        g_adcConverter[i].handle = handle;
     }
 
-    return handle;
+    return channels;
 }
 
 //*****************************************************************************

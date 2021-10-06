@@ -81,9 +81,9 @@ typedef struct _SYSDATA
 
 typedef enum XSYSERR {
     XSYSERR_SUCCESS=0,              /* no system errors detected */
-    XSYSERR_ADC_INIT,               /* an ADC board failed to initialize */
-    XSYSERR_RTD_INIT,               /* an RTD board failed to initialize */
-    XSYSERR_GUID_SERMAC,            /* error reading MAC & serial number */
+    XSYSERR_ADC_READ,               /* an ADC sensor read failed */
+    XSYSERR_RTD_READ,               /* a RTD sensor read failed  */
+    XSYSERR_GUID_SERMAC,            /* error reading MAC address */
     /* max error count */
     XSYSERR_LAST_ERROR
 } XSYSERR;

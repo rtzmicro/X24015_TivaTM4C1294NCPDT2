@@ -38,7 +38,8 @@ const MAX31865_Params MAX31865_defaultParams = {
     .configReg             = 0,
     .chipselect            = 0,
     .chipselect_proc       = NULL,
-    .chipselect_param      = NULL
+    .chipselect_param1     = NULL,
+    .chipselect_param2     = NULL
 };
 
 /*** Static Function Prototypes ***/
@@ -56,6 +57,8 @@ static bool MAX31865_read(MAX31865_Handle handle,
                           uint8_t regaddr,
                           void* databuf,
                           size_t datalen);
+
+static void HandleChipSelect(MAX31865_Handle handle, bool assert);
 
 /******************************************************************************
  * MAX31865_Params_init
@@ -77,12 +80,14 @@ MAX31865_Handle MAX31865_construct(
         SPI_Handle spiHandle,
         MAX31865_Params *params)
 {
-    /* Initialize object members */
+    /* Initialize object SPI handle */
     obj->spiHandle             = spiHandle;
-    /* Initialize from default parameters */
+    /* Initialize chip select callback  nd parameters */
     obj->chipselect            = params->chipselect;
     obj->chipselect_proc       = params->chipselect_proc;
-    obj->chipselect_param      = params->chipselect_param;
+    obj->chipselect_param1     = params->chipselect_param1;
+    obj->chipselect_param2     = params->chipselect_param2;
+    /* Initialize configuration parameters */
     obj->charge_time_delay     = params->charge_time_delay;
     obj->conversion_time_delay = params->conversion_time_delay;
     obj->rtd                   = params->rtd;
@@ -125,10 +130,8 @@ MAX31865_Handle MAX31865_create(
 
     handle = Memory_alloc(NULL, sizeof(MAX31865_Object), NULL, &eb);
 
-    if (handle == NULL)
-        return (NULL);
-
-    handle = MAX31865_construct(handle, spiHandle, params);
+    if (handle)
+        handle = MAX31865_construct(handle, spiHandle, params);
 
     return handle;
 }
@@ -181,6 +184,30 @@ bool MAX31865_init(MAX31865_Handle handle)
 }
 
 /*****************************************************************************
+ * Handle the chip select prior to read/write operations
+ *****************************************************************************/
+
+void HandleChipSelect(MAX31865_Handle handle, bool assert)
+{
+    /* Has the user assigned chip select handler to this object
+     * already? If so, then we just need to call the users
+     * handler and pass any arguments.
+     */
+    if (handle->chipselect_proc)
+    {
+        handle->chipselect_proc((void*)handle->chipselect_param1,
+                                (void*)handle->chipselect_param2, assert);
+    }
+    else
+    {
+        /* No user assigned callback handler has been set, so we
+         * just set the chip select pin to the state specified.
+         */
+        GPIO_write(handle->chipselect, (assert) ? PIN_LOW : PIN_HIGH);
+    }
+}
+
+/*****************************************************************************
  * Write a register to MAX31865
  *****************************************************************************/
 
@@ -208,20 +235,14 @@ bool MAX31865_write(
     transaction.txBuf = (Ptr)&txBuffer;
     transaction.rxBuf = (Ptr)&rxBuffer;
 
-    /* Hold SPI chip select low */
-    if (handle->chipselect_proc == NULL)
-        GPIO_write(handle->chipselect, PIN_LOW);
-    else
-        handle->chipselect_proc((void*)handle->chipselect_param, TRUE);
+    /* Assert the chip select */
+     HandleChipSelect(handle, TRUE);
 
     /* Initiate SPI transfer of opcode */
     success = SPI_transfer(handle->spiHandle, &transaction);
 
-    /* Release SPI chip select */
-    if (handle->chipselect_proc == NULL)
-        GPIO_write(handle->chipselect, PIN_HIGH);
-    else
-        handle->chipselect_proc((void*)handle->chipselect_param, FALSE);
+    /* Release the chip select */
+    HandleChipSelect(handle, TRUE);
 
     return success;
 }
@@ -254,22 +275,16 @@ bool MAX31865_read(
     transaction.txBuf = (Ptr)&txBuffer;
     transaction.rxBuf = (Ptr)&rxBuffer;
 
-    /* Hold SPI chip select low */
-    if (handle->chipselect_proc == NULL)
-        GPIO_write(handle->chipselect, PIN_LOW);
-    else
-        handle->chipselect_proc((void*)handle->chipselect_param, TRUE);
+    /* Assert the chip select */
+    HandleChipSelect(handle, TRUE);
 
     /* Initiate SPI transfer of opcode */
     success = SPI_transfer(handle->spiHandle, &transaction);
 
-    /* Release SPI chip select */
-    if (handle->chipselect_proc == NULL)
-        GPIO_write(handle->chipselect, PIN_HIGH);
-    else
-        handle->chipselect_proc((void*)handle->chipselect_param, FALSE);
+    /* Release the chip select */
+    HandleChipSelect(handle, TRUE);
 
-    /* Return the register data byte */
+    /* Return the register data bytes */
     memcpy(databuf, &rxBuffer[1], datalen);
 
     return success;
@@ -472,8 +487,7 @@ void MAX31865_clearFault(MAX31865_Handle handle)
  *
  ******************************************************************************/
 
-void MAX31865_setHighFaultThreshold(MAX31865_Handle handle,
-                                    uint16_t threshold)
+void MAX31865_setHighFaultThreshold(MAX31865_Handle handle, uint16_t threshold)
 {
 #if (MAX31865_THREAD_SAFE > 0)
     IArg key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
@@ -494,8 +508,7 @@ void MAX31865_setHighFaultThreshold(MAX31865_Handle handle,
  *
  ******************************************************************************/
 
-void MAX31865_setLowFaultThreshold(MAX31865_Handle handle,
-                                   uint16_t threshold)
+void MAX31865_setLowFaultThreshold(MAX31865_Handle handle, uint16_t threshold)
 {
 #if (MAX31865_THREAD_SAFE > 0)
     IArg key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
