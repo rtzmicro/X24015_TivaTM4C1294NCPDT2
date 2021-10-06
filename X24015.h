@@ -7,8 +7,10 @@
 #ifndef __XMOD_24015_H
 #define __XMOD_24015_H
 
-#include "MCP79410.h"
-#include "AD7799.h"
+#include "MCP79410.h"       /* RTC clock/cal */
+#include "MCP23S17.h"       /* I/O expander  */
+#include "MAX31865.h"       /* RTD converter */
+#include "AD7799.h"         /* ADC converter */
 
 //*****************************************************************************
 // CONSTANTS AND CONFIGURATION
@@ -66,12 +68,13 @@ typedef struct _SYSDATA
     I2C_Handle      i2c3;                   /* I2C3 MCP79410 RTC part     */
     /* Devices connected to peripherals */
     MCP79410_Handle handleRTC;              /* MCP79410 RTC part          */
-    //AD7799_Handle   AD7799Handle1;
-    //AD7799_Handle   AD7799Handle2;
     /* AD7799 ADC data */
     uint8_t         adcID;                  /* chip ID, 16 or 24 bit type */
     uint32_t        adcChannels;            /* num of ADC channels active */
     uint32_t        adcData[16];
+    /* MAX31865 RTD data */
+    uint32_t        rtdChannels;            /* num of ADC channels active */
+    float           rtdData[16];
 } SYSDATA;
 
 /* Global System Error Codes for SYSDATA.lastError */
@@ -79,6 +82,7 @@ typedef struct _SYSDATA
 typedef enum XSYSERR {
     XSYSERR_SUCCESS=0,              /* no system errors detected */
     XSYSERR_ADC_INIT,               /* an ADC board failed to initialize */
+    XSYSERR_RTD_INIT,               /* an RTD board failed to initialize */
     XSYSERR_GUID_SERMAC,            /* error reading MAC & serial number */
     /* max error count */
     XSYSERR_LAST_ERROR

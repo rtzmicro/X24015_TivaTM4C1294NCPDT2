@@ -33,6 +33,7 @@
 /* XDCtools Header files */
 #include <xdc/std.h>
 #include <xdc/cfg/global.h>
+#include <xdc/runtime/Assert.h>
 #include <xdc/runtime/System.h>
 #include <xdc/runtime/Error.h>
 #include <xdc/runtime/Gate.h>
@@ -77,19 +78,23 @@
 
 #include "Board.h"
 #include "X24015.h"
-#include "AD7799.h"
 #include "Utils.h"
 #include "CLITask.h"
 #include "usb_device.h"
 
-/*** Global System Data ***/
+//*****************************************************************************
+// Global System and Config Data
+//*****************************************************************************
 
 SYSCONFIG   g_cfg;      /* Global configuration data from EEPROM */
 SYSDATA     g_sys;      /* Global system variables and data storage */
 
-/* This defines the number of ADC cards loaded in the rack,
- * the number of converters per card, and the number of channels
- * channels in the system.
+//*****************************************************************************
+// Global ADC Card Data
+//*****************************************************************************
+
+/* This defines the number of ADC cards loaded in the rack, the number
+ * of converters per card, and the number of channels in the system.
  */
 #define ADC_NUM_CARDS               2
 #define ADC_CONVERTERS_PER_CARD     2
@@ -102,15 +107,15 @@ SYSDATA     g_sys;      /* Global system variables and data storage */
 /* Each 24035 ADC card has two converters, each with it's own chip
  * select, and provides a total of four ADC channels per card.
  */
-typedef struct _ADC_CONVERTER {
+typedef struct _ADC_CARD {
     AD7799_Handle   handle;
     uint32_t        chipsel;
-} ADC_CONVERTER;
+} ADC_CARD;
 
 /* This table contains the handle to each ADC channel allocated in
  * the system along with the chip select for SPI3 to access the device.
  */
-static ADC_CONVERTER g_adcConverter[ADC_NUM_CONVERTERS] = {
+static ADC_CARD g_adcConverter[ADC_NUM_CONVERTERS] = {
     {
         .handle  = NULL,
         .chipsel = X24015_GPIO_PN0,     /* CARD #1, channels 1 & 2 */
@@ -129,7 +134,51 @@ static ADC_CONVERTER g_adcConverter[ADC_NUM_CONVERTERS] = {
     },
 };
 
-/*** Static Function Prototypes ***/
+//*****************************************************************************
+// Global RTD Card Data
+//*****************************************************************************
+
+/* This defines the number of RTD cards loaded in the rack, the number of
+ * converters per card, and the number of channels in the system.
+ */
+#define RTD_NUM_CARDS               1
+#define RTD_MAX_CARDS               4
+#define RTD_CHANNELS_PER_CARD       4
+#define RTD_NUM_CHANNELS            (RTD_NUM_CARDS * RTD_CHANNELS_PER_CARD)
+
+/* Each 24037 RTD card has four RTD converters(channels). Each RTD
+ * converter requires it's own chip select. The chip selects are driven
+ * and de-multiplexed by an MCP23S17 I/O expander chip on the card. Thus
+ * one SPI bus is used for chip selects and another for the RTD devices.
+ */
+typedef struct _RTD_CHANNEL {
+    MAX31865_Handle handleRTD;      /* Handle to RTD object for channel */
+    uint8_t         csMaskIOX;      /* The IO expander gpio pin for CS  */
+} RTD_CHANNEL;
+
+typedef struct _RTD_CARD {
+    RTD_CHANNEL     channel[RTD_CHANNELS_PER_CARD];
+    MCP23S17_Handle handleIOX;      /* Handle of cards I/O expander */
+    uint32_t        chipselIOX;     /* chip select for I/O expander */
+} RTD_CARD;
+
+/* This table contains the handle to each RTD card/channels allocated in
+ * the system along with the various chip selects to access these.
+ */
+static RTD_CARD g_rtdCard[RTD_MAX_CARDS] = {
+    /* RTD Card #1 */
+    {{ NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }, NULL, X24015_GPIO_PM0 },
+    /* RTD Card #2 */
+    {{ NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }, NULL, X24015_GPIO_PM1 },
+    /* RTD Card #3 */
+    {{ NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }, NULL, X24015_GPIO_PM2 },
+    /* RTD Card #4 */
+    {{ NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }, NULL, X24015_GPIO_PM3 },
+};
+
+//*****************************************************************************
+// Static Function Prototypes
+//*****************************************************************************
 
 static bool Init_Peripherals(void);
 static bool Init_Devices(void);
@@ -293,8 +342,8 @@ int ReadGUIDS(I2C_Handle handle, uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6])
 }
 
 //*****************************************************************************
-//
-//
+// This opens all the I2C and SPI port drivers. These handles are passed
+// to other driver objects later that need access to these drivers.
 //*****************************************************************************
 
 bool Init_Peripherals(void)
@@ -418,8 +467,8 @@ bool Init_Peripherals(void)
 }
 
 //*****************************************************************************
-//
-//
+// This function allocates and initializes all the hardware devices in the
+// system at startup. We also fire up the Ethernet, USB and other devices.
 //*****************************************************************************
 
 bool Init_Devices(void)
@@ -496,6 +545,85 @@ bool Init_Devices(void)
 }
 
 //*****************************************************************************
+// This function allocates all the RTD context objects for communication
+// and initializes the RTD converters for use.
+//*****************************************************************************
+
+void MAX31865_ChipSelect_Proc(void* param, bool assert)
+{
+    RTD_CHANNEL *channel = (RTD_CHANNEL*)param;
+
+    uint8_t chipsel = channel->csMaskIOX;
+}
+
+MAX31865_Handle RTD_AllocCards(void)
+{
+    size_t i, n;
+
+    for (n=0; n < RTD_NUM_CARDS; n++)
+    {
+        RTD_CARD *card = &g_rtdCard[n];
+
+        /*
+         * Create the I/O expander object for this card
+         */
+
+        /* Initialize the I/O expander device object parameters */
+        MCP23S17_Params paramsIOX;
+        MCP23S17_Params_init(&paramsIOX);
+
+        /* Set the chip select for this I/O expander card */
+        paramsIOX.gpioCSIndex = card->chipselIOX;
+
+        /* Create the I/O expander object on SPI-0 for this card */
+        card->handleIOX = MCP23S17_create(g_sys.spi0, &paramsIOX);
+
+        Assert_isTrue((card->handleIOX != NULL), NULL);
+
+        /*
+         * Create all the RTD channel objects for the card
+         */
+
+        for (i=0; i < RTD_CHANNELS_PER_CARD; i++)
+        {
+            RTD_CHANNEL *channel = &card->channel[i];
+
+            /* Initialize the RTD device object parameters */
+            MAX31865_Params params;
+            MAX31865_Params_init(&params);
+
+            params.charge_time_delay     = MAX31865_CHARGE_TIME;
+            params.conversion_time_delay = MAX31865_CONVERSION_TIME;
+            params.rtd                   = 100;
+            params.rref                  = 400;
+            params.lowFaultThreshold     = 0;
+            params.highFaultThreshold    = 0xFFFF;
+            params.configReg             = 0;
+            params.chipselect            = channel->csMaskIOX;
+            params.chipselect_param      = channel;
+            params.chipselect_proc       = NULL;
+
+            /* Create the I/O expander object on SPI-2 for this card */
+            channel->handleRTD = MAX31865_create(g_sys.spi2, &params);
+
+            Assert_isTrue((channel->handleRTD != NULL), NULL);
+
+            if (!MAX31865_init(channel->handleRTD))
+            {
+                System_printf("MAX31865_init() failed\n");
+                SetLastError(XSYSERR_RTD_INIT);
+            }
+            else
+            {
+                g_sys.rtdChannels += 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+//*****************************************************************************
 // This allocates an ADC context for communication and initializes the ADC
 // converter for use. This is called for each ADC in the system (two per card).
 //*****************************************************************************
@@ -565,6 +693,7 @@ uint32_t ADC_ReadChannel(AD7799_Handle handle, uint32_t channel)
 
             //if (status & AD7799_STAT_ERR)
             //    data = ADC_ERROR;
+            (void)status;
 
             break;
         }

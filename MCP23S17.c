@@ -73,12 +73,13 @@
  * Default Register Configuration Data (all outputs)
  *****************************************************************************/
 
-/* Default MCP23S17SO configuration - port A & B all outputs */
+/* Default MCP23S17SO configuration */
 
 static MCP23S17_InitData initData[] = {
     { MCP_IOCONA, C_SEQOP },                /* Config port A for byte mode */
     { MCP_IOCONB, C_SEQOP },                /* Config port B for byte mode */
     { MCP_IODIRA, 0x00 },                   /* Port A - all pins outputs   */
+    { MCP_IOPOLA, 0xFF },                   /* Invert polarity inputs      */
     { MCP_IODIRB, 0xFF },                   /* Port B - all pins inputs    */
     { MCP_IOPOLB, 0xFF },                   /* Invert polarity inputs      */
 };
@@ -86,8 +87,9 @@ static MCP23S17_InitData initData[] = {
 /* Default MCP23S17 parameters structure */
 
 const MCP23S17_Params MCP23S17_defaultParams = {
-    initData,
-    sizeof(initData)/sizeof(MCP23S17_InitData)
+    .initData      = initData,
+    .initDataCount = sizeof(initData)/sizeof(MCP23S17_InitData),
+    .gpioCSIndex   = 0
 };
 
 /*****************************************************************************
@@ -108,13 +110,12 @@ Void MCP23S17_Params_init(MCP23S17_Params *params)
 MCP23S17_Handle MCP23S17_construct(
         MCP23S17_Object *obj,
         SPI_Handle spiHandle,
-        uint32_t gpioCSIndex,
         MCP23S17_Params *params
         )
 {
     /* Initialize the object's fields */
-    obj->spiHandle = spiHandle;
-    obj->gpioCS    = gpioCSIndex;
+    obj->spiHandle   = spiHandle;
+    obj->gpioCSIndex = params->gpioCSIndex;
 
 #if (MCP23S17_THREAD_SAFE > 0)
     GateMutex_construct(&(obj->gate), NULL);
@@ -142,7 +143,6 @@ Void MCP23S17_destruct(MCP23S17_Handle handle)
 
 MCP23S17_Handle MCP23S17_create(
         SPI_Handle spiHandle,
-        uint32_t gpioCSIndex,
         MCP23S17_Params *params
         )
 {
@@ -159,7 +159,7 @@ MCP23S17_Handle MCP23S17_create(
     if (obj == NULL)
         return NULL;
 
-    handle = MCP23S17_construct(obj, spiHandle, gpioCSIndex, params);
+    handle = MCP23S17_construct(obj, spiHandle, params);
 
     if (handle != NULL)
     {
@@ -243,7 +243,7 @@ bool MCP23S17_write(
 #endif
 
 	/* Hold SPI chip select low */
-	GPIO_write(handle->gpioCS, PIN_LOW);
+	GPIO_write(handle->gpioCSIndex, PIN_LOW);
 
 	/* Initiate SPI transfer of opcode */
 
@@ -255,7 +255,7 @@ bool MCP23S17_write(
 	}
 
 	/* Release SPI chip select */
-	GPIO_write(handle->gpioCS, PIN_HIGH);
+	GPIO_write(handle->gpioCSIndex, PIN_HIGH);
 
 #if (MCP23S17_THREAD_SAFE > 0)
     GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
@@ -293,7 +293,7 @@ bool MCP23S17_read(
 #endif
 
 	/* Hold SPI chip select low */
-	GPIO_write(handle->gpioCS, PIN_LOW);
+	GPIO_write(handle->gpioCSIndex, PIN_LOW);
 
 	/* Initiate SPI transfer of opcode */
     success = SPI_transfer(handle->spiHandle, &transaction);
@@ -304,7 +304,7 @@ bool MCP23S17_read(
 	}
 
 	/* Release SPI chip select */
-	GPIO_write(handle->gpioCS, PIN_HIGH);
+	GPIO_write(handle->gpioCSIndex, PIN_HIGH);
 
 #if (MCP23S17_THREAD_SAFE > 0)
     GateMutex_leave(GateMutex_handle(&(handle->gate)), key);

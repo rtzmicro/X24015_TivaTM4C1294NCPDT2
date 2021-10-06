@@ -103,12 +103,13 @@ typedef struct MCP23S17_InitData {
 typedef struct MCP23S17_Params {
     MCP23S17_InitData*  initData;       /* ptr to init data array  */
     uint32_t            initDataCount;  /* size of init data array */
+    uint32_t            gpioCSIndex;    /* chip select in Board.h  */
 } MCP23S17_Params;
 
 /* MCP23S17 handle object */
 typedef struct MCP23S17_Object {
-    SPI_Handle      	spiHandle;      /* Handle for SPI object */
-    uint32_t    		gpioCS;         /* Chip select in Board.h */
+    SPI_Handle      	spiHandle;      /* handle for SPI object  */
+    uint32_t    		gpioCSIndex;    /* chip select in Board.h */
 #if (MCP23S17_THREAD_SAFE > 0)
     GateMutex_Struct    gate;
 #endif
@@ -128,7 +129,6 @@ Void MCP23S17_Params_init(
 MCP23S17_Handle MCP23S17_construct(
         MCP23S17_Object *obj,
         SPI_Handle spiHandle,
-        uint32_t gpioCSIndex,
         MCP23S17_Params *params
         );
 
@@ -138,7 +138,7 @@ Void MCP23S17_destruct(
 
 MCP23S17_Handle MCP23S17_create(
         SPI_Handle spiHandle,
-        uint32_t gpioCSIndex,
+
         MCP23S17_Params *params
         );
 

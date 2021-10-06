@@ -164,17 +164,6 @@ typedef struct MCP79410_Params {
 } MCP79410_Params;
 
 /*!
- *  @brief MCP79410 Transaction Structure
- *
- *  This structure is used to describe the data to read/write.
- */
-typedef struct MCP79410_Transaction {
-    uint8_t *data;       /*!< data pointer to read or write       */
-    uint32_t data_size;  /*!< size of data to read or write       */
-    uint32_t byte;       /*!< byte offset in memory to read/write */
-} MCP79410_Transaction;
-
-/*!
  *  @brief MCP79410 Object
  *
  *  The application should never directly access the fields in the structure.

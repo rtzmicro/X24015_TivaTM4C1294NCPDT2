@@ -37,7 +37,8 @@ const MAX31865_Params MAX31865_defaultParams = {
     .highFaultThreshold    = 0xFFFF,
     .configReg             = 0,
     .chipselect            = 0,
-    .chipselect_proc       = NULL
+    .chipselect_proc       = NULL,
+    .chipselect_param      = NULL
 };
 
 /*** Static Function Prototypes ***/
@@ -81,6 +82,7 @@ MAX31865_Handle MAX31865_construct(
     /* Initialize from default parameters */
     obj->chipselect            = params->chipselect;
     obj->chipselect_proc       = params->chipselect_proc;
+    obj->chipselect_param      = params->chipselect_param;
     obj->charge_time_delay     = params->charge_time_delay;
     obj->conversion_time_delay = params->conversion_time_delay;
     obj->rtd                   = params->rtd;
@@ -210,7 +212,7 @@ bool MAX31865_write(
     if (handle->chipselect_proc == NULL)
         GPIO_write(handle->chipselect, PIN_LOW);
     else
-        handle->chipselect_proc(0, TRUE);
+        handle->chipselect_proc((void*)handle->chipselect_param, TRUE);
 
     /* Initiate SPI transfer of opcode */
     success = SPI_transfer(handle->spiHandle, &transaction);
@@ -219,7 +221,7 @@ bool MAX31865_write(
     if (handle->chipselect_proc == NULL)
         GPIO_write(handle->chipselect, PIN_HIGH);
     else
-        handle->chipselect_proc(0, FALSE);
+        handle->chipselect_proc((void*)handle->chipselect_param, FALSE);
 
     return success;
 }
@@ -256,7 +258,7 @@ bool MAX31865_read(
     if (handle->chipselect_proc == NULL)
         GPIO_write(handle->chipselect, PIN_LOW);
     else
-        handle->chipselect_proc(0, TRUE);
+        handle->chipselect_proc((void*)handle->chipselect_param, TRUE);
 
     /* Initiate SPI transfer of opcode */
     success = SPI_transfer(handle->spiHandle, &transaction);
@@ -265,7 +267,7 @@ bool MAX31865_read(
     if (handle->chipselect_proc == NULL)
         GPIO_write(handle->chipselect, PIN_HIGH);
     else
-        handle->chipselect_proc(0, FALSE);
+        handle->chipselect_proc((void*)handle->chipselect_param, FALSE);
 
     /* Return the register data byte */
     memcpy(databuf, &rxBuffer[1], datalen);
