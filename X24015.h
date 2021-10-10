@@ -70,11 +70,13 @@ typedef struct _SYSDATA
     MCP79410_Handle handleRTC;              /* MCP79410 RTC part          */
     /* AD7799 ADC data */
     uint8_t         adcID;                  /* chip ID, 16 or 24 bit type */
-    uint32_t        adcChannels;            /* num of ADC channels active */
+    uint32_t        adcNumChannels;         /* num of ADC channels active */
     uint32_t        adcData[16];
+    float           uvcData[16];
     /* MAX31865 RTD data */
-    uint32_t        rtdChannels;            /* num of ADC channels active */
-    float           rtdData[16];
+    uint32_t        rtdNumChannels;         /* num of ADC channels active */
+    uint32_t        rtdData[16];
+    float           rtdTemp[16];            /* temperature C data         */
 } SYSDATA;
 
 /* Global System Error Codes for SYSDATA.lastError */

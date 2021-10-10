@@ -306,6 +306,8 @@ int TcpRecv(int fd, void *pbuf, int size, int flags)
 
 static int op_adc_get_config(int fd, XMOD_ADC_GET_CONFIG* msg);
 static int op_adc_read_data(int fd, XMOD_ADC_READ_DATA* msg);
+static int op_rtd_get_config(int fd, XMOD_RTD_GET_CONFIG* msg);
+static int op_rtd_read_data(int fd, XMOD_RTD_READ_DATA* msg);
 
 Void tcpWorker(UArg arg0, UArg arg1)
 {
@@ -378,6 +380,14 @@ Void tcpWorker(UArg arg0, UArg arg1)
             status = op_adc_read_data(fd, (XMOD_ADC_READ_DATA*)msg);
             break;
 
+        case XOP_RTD_GET_CONFIG:
+            status = op_rtd_get_config(fd, (XMOD_RTD_GET_CONFIG*)msg);
+            break;
+
+        case XOP_RTD_READ_DATA:
+            status = op_rtd_read_data(fd, (XMOD_RTD_READ_DATA*)msg);
+            break;
+
         default:
             /* Unknown command, close the connection */
             status = -104;
@@ -421,7 +431,7 @@ int SendReply(int fd, XMOD_MSG_HDR* hdr)
 }
 
 //*****************************************************************************
-// Client command request handlers
+// ADC UV-C Power request handlers
 //*****************************************************************************
 
 int op_adc_get_config(int fd, XMOD_ADC_GET_CONFIG* msg)
@@ -429,8 +439,8 @@ int op_adc_get_config(int fd, XMOD_ADC_GET_CONFIG* msg)
     msg->hdr.opcode   = XOP_ADC_GET_CONFIG;
     msg->hdr.length   = sizeof(XMOD_ADC_GET_CONFIG);
 
-    msg->adc_channels = (uint8_t)g_sys.adcChannels;
-    msg->adc_id       = (uint8_t)g_sys.adcID;
+    msg->adc_num_channels = (uint8_t)g_sys.adcNumChannels;
+    msg->adc_id           = (uint8_t)g_sys.adcID;
 
     return SendReply(fd, &(msg->hdr));
 }
@@ -444,10 +454,39 @@ int op_adc_read_data(int fd, XMOD_ADC_READ_DATA* msg)
 
     for (i=0; i < XMOD_ADC_CHANNELS; i++)
     {
-        if (i > g_sys.adcChannels)
-            break;
+        msg->adc_data[i]  = g_sys.adcData[i];   /* raw ADC data */
+        msg->uvc_power[i] = g_sys.uvcData[i];   /* UV-C power  mW/cm2 */
+    }
 
-        msg->adc_data[i] = (uint8_t)g_sys.adcData[i];
+    return SendReply(fd, &(msg->hdr));
+}
+
+//*****************************************************************************
+// RTD Temperature request handlers
+//*****************************************************************************
+
+int op_rtd_get_config(int fd, XMOD_RTD_GET_CONFIG* msg)
+{
+    msg->hdr.opcode   = XOP_RTD_GET_CONFIG;
+    msg->hdr.length   = sizeof(XMOD_RTD_GET_CONFIG);
+
+    msg->rtd_type         = 4;
+    msg->rtd_num_channels = (uint8_t)g_sys.rtdNumChannels;
+
+    return SendReply(fd, &(msg->hdr));
+}
+
+int op_rtd_read_data(int fd, XMOD_RTD_READ_DATA* msg)
+{
+    int i;
+
+    msg->hdr.opcode   = XOP_RTD_READ_DATA;
+    msg->hdr.length   = sizeof(XMOD_RTD_READ_DATA);
+
+    for (i=0; i < XMOD_RTD_CHANNELS; i++)
+    {
+        msg->adc_data[i] = g_sys.rtdData[i];    /* raw ADC data */
+        msg->rtd_temp[i] = g_sys.rtdTemp[i];    /* temp celcius */
     }
 
     return SendReply(fd, &(msg->hdr));
