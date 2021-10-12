@@ -96,35 +96,38 @@ SYSDATA     g_sys;      /* Global system variables and data storage */
 /* This defines the number of ADC cards loaded in the rack, the number
  * of converters per card, and the number of channels in the system.
  */
-#define ADC_NUM_CARDS               2
+//#define ADC_NUM_CARDS               2
 #define ADC_MAX_CARDS               4
 #define ADC_CONVERTERS_PER_CARD     2
 #define ADC_CHANNELS_PER_CARD       (2 * ADC_CONVERTERS_PER_CARD)
-#define ADC_NUM_CONVERTERS          (ADC_NUM_CARDS * ADC_CONVERTERS_PER_CARD)
-#define ADC_NUM_CHANNELS            (ADC_NUM_CARDS * ADC_CHANNELS_PER_CARD)
 
 #define ADC_ERROR                   0xFFFFFFFF
 
-/* Each 24035 ADC card has two converters, each with it's own chip
- * select, and provides a total of four ADC channels per card.
+/* Each 24035 ADC card has two AD7798 converters per card,
+ * each with it's own chip select. This provides a total of
+ * four ADC channels per card.
  */
+typedef struct _ADC_CONVERTER {
+    AD7799_Handle   handle;         /* handle to the AD7799 driver */
+    uint32_t        gpiocs;         /* chip select for the ADC     */
+} ADC_CONVERTER;
+
 typedef struct _ADC_CARD {
-    AD7799_Handle   handle[ADC_CONVERTERS_PER_CARD];
-    uint32_t        gpiocs[ADC_CONVERTERS_PER_CARD];
+    ADC_CONVERTER   converter[ADC_CONVERTERS_PER_CARD];
 } ADC_CARD;
 
 /* This table contains the handle to each ADC channel allocated in
- * the system along with the chip select for SPI3 to access the device.
+ * the system along with the chip select SPI handle to the device.
  */
 static ADC_CARD g_adcCard[ADC_MAX_CARDS] = {
-    /* CARD #1, channels 1-4 (PN0,PL2) */
-    {{ NULL, NULL }, { X24015_GPIO_PN0, X24015_GPIO_PN1 }},
-    /* CARD #2, channels 5-8 (PN1,PL3) */
-    {{ NULL, NULL }, { X24015_GPIO_PN2, X24015_GPIO_PL5 }}, /* FIX - FOR REV-A CARD ONLY! */
-    /* CARD #3, channels 9-12 (PN2,PL4)*/
-    {{ NULL, NULL }, { X24015_GPIO_PN2, X24015_GPIO_PL4 }},
-    /* CARD #4, channels 13-16 (PN3,PL5) */
-    {{ NULL, NULL }, { X24015_GPIO_PN3, X24015_GPIO_PL5 }},
+    /* CARD #1, channels 01-04 chip select PN0, PL2 */
+    {{ NULL, X24015_GPIO_PN0, NULL, X24015_GPIO_PL2 }},
+    /* CARD #2, channels 05-08 chip select PN1, PL3 */
+    {{ NULL, X24015_GPIO_PN1, NULL, X24015_GPIO_PL3 }},
+    /* CARD #3, channels 09-12 chip select PN2, PL4 */
+    {{ NULL, X24015_GPIO_PN2, NULL, X24015_GPIO_PL4 }},
+    /* CARD #4, channels 13-16 chip select PN3, PL5 */
+    {{ NULL, X24015_GPIO_PN3, NULL, X24015_GPIO_PL5 }},
 };
 
 //*****************************************************************************
@@ -137,7 +140,6 @@ static ADC_CARD g_adcCard[ADC_MAX_CARDS] = {
 #define RTD_NUM_CARDS               1
 #define RTD_MAX_CARDS               4
 #define RTD_CHANNELS_PER_CARD       4
-#define RTD_NUM_CHANNELS            (RTD_NUM_CARDS * RTD_CHANNELS_PER_CARD)
 
 /* Each 24037 RTD card has four RTD converters(channels). Each RTD
  * converter requires it's own chip select. The chip selects are driven
@@ -190,7 +192,7 @@ static void EnableClockDivOutput(uint32_t div);
 #endif
 
 float ADC_to_UVC(uint32_t adc);
-float ADC_to_Fullscale(uint32_t adc);
+float ADC_to_Fullscale(uint32_t adc, uint32_t fullscale);
 
 //*****************************************************************************
 // Main Entry Point
@@ -644,20 +646,20 @@ float RTD_ReadChannel(uint32_t channel)
 
     size_t card_index = channel / RTD_CHANNELS_PER_CARD;
 
-    if (card_index < RTD_CHANNELS_PER_CARD)
-    {
-        RTD_CARD *card = &g_rtdCard[card_index];
+    if (card_index > RTD_CHANNELS_PER_CARD)
+        return temp;
 
-        MAX31865_Handle handle = card->channels[channel % 4].handleRTD;
+    RTD_CARD *card = &g_rtdCard[card_index];
 
-        if (handle)
-        {
-            uint8_t status = MAX31865_readCelsius(handle, &temp);
+    MAX31865_Handle handle = card->channels[channel % 4].handleRTD;
 
-            if (status != MAX31865_ERR_SUCCESS)
-                temp = 0.0f;
-        }
-    }
+    if (!handle)
+        return temp;
+
+    uint8_t status = MAX31865_readCelsius(handle, &temp);
+
+    if (status != MAX31865_ERR_SUCCESS)
+        temp = 0.0f;
 
     return temp;
 }
@@ -671,10 +673,11 @@ float RTD_ReadChannel(uint32_t channel)
 uint32_t ADC_AllocCards(void)
 {
     size_t i, n;
+    uint8_t adcID;
     uint32_t channels = 0;
     AD7799_Handle handle;
 
-    for (n=0; n < ADC_NUM_CARDS; n++)
+    for (n=0; n < ADC_MAX_CARDS; n++)
     {
         ADC_CARD *card = &g_adcCard[n];
 
@@ -682,24 +685,28 @@ uint32_t ADC_AllocCards(void)
         {
             /* Allocate an ADC object connected to SPI-3 for the 24035 ADC
              * cards. These cards are always on SPI-3 with two GPIO lines
-             * directly mapped to chip selects of each ADC on each card.
+             * directly mapped to chip selects for each ADC on each card.
              */
+            handle = AD7799_create(g_sys.spi3, card->converter[i].gpiocs, NULL);
 
-            handle = AD7799_create(g_sys.spi3, card->gpiocs[i], NULL);
+            card->converter[i].handle = handle;
 
             Assert_isTrue((handle != NULL), NULL);
 
-            card->handle[i] = handle;
-
+            /* Attempt to reset any ADC chip present */
             AD7799_Reset(handle);
 
-            if ((g_sys.adcID = AD7799_Init(handle)) == 0)
+            /* Attempt to probe for the ADC and initialize it */
+            if ((adcID = AD7799_Init(handle)) == 0)
             {
-                System_printf("AD7799_Init() failed\n");
+                System_printf("AD7799_Init(card=%d, adc=%d, cs=%d) failed!\n", n, i, card->converter[i].gpiocs);
                 System_flush();
             }
             else
             {
+                /* Found an ADC, save it's type */
+                g_sys.adcID = adcID;
+
                 /* Set gain to 1 */
                 AD7799_SetGain(handle, AD7799_GAIN_1);
 
@@ -708,6 +715,9 @@ uint32_t ADC_AllocCards(void)
 
                 /* Set for unipolar data reading */
                 AD7799_SetUnipolar(handle, AD7799_UNIPOLAR_ENA);
+
+                System_printf("AD7799_Init(card=%d, adc=%d, cs=%d) success!\n", n, i, card->converter[i].gpiocs);
+                System_flush();
 
                 channels += 2;
             }
@@ -730,47 +740,56 @@ uint32_t ADC_ReadChannel(uint32_t channel)
 
     size_t card_index = channel / ADC_CHANNELS_PER_CARD;
 
-    if (card_index < ADC_MAX_CARDS)
+    if (card_index >= ADC_MAX_CARDS)
+        return ADC_ERROR;
+
+    /* Get a pointer to the card info table */
+    ADC_CARD *card = &g_adcCard[card_index];
+
+    /* There are two ADC's per card and each has two channels, so we must
+     * select sub-channel 0 or 1 also. The board has sub-channel 1 on
+     * the top connector and sub-channel 0 on the second connector.
+     */
+    uint32_t converter = ((channel % 4) <= 1) ? 0 : 1;
+
+    /* Get handle to ADC converter 0 or 1 on the card */
+    AD7799_Handle handle = card->converter[converter].handle;
+
+    if (!handle)
+        return ADC_ERROR;
+
+    size_t n = channel % 4;
+
+    /* Determine the sub-channel within the ADC itself */
+    uint32_t subchan = ((n == 0) || (n == 2)) ? 1 : 0;
+
+    /* Select ADC channel to 0 or 1 */
+    AD7799_SetChannel(handle, subchan);
+
+    /* Set the channel mode to start the single conversion */
+    AD7799_SetMode(handle, AD7799_MODE_SEL(AD7799_MODE_SINGLE) | AD7799_MODE_RATE(10));
+
+    /* Poll waiting for the conversion to complete */
+
+    for (i=0; i < 20; i++)
     {
-        /* Get a pointer to the card info table */
-        ADC_CARD *card = &g_adcCard[card_index];
-
-        /* Each ADC has two channels, so we select sub-channel 0 or 1 */
-        uint32_t subchan = channel % 2;
-
-        /* Get handle to the ADC channel 0 or 1 */
-        AD7799_Handle handle = card->handle[subchan];
-
-        if (handle)
+        /* Check for ADC conversion complete */
+        if (AD7799_IsReady(handle))
         {
-            /* Select ADC channel to 0 or 1 */
-            AD7799_SetChannel(handle, subchan);
+            /* Read ADC channel */
+            data = AD7799_ReadData(handle);
 
-            /* Set the channel mode to start the single conversion */
-            AD7799_SetMode(handle, AD7799_MODE_SEL(AD7799_MODE_SINGLE) | AD7799_MODE_RATE(10));
+            /* Get current ADC status and check for error */
+            status = AD7799_ReadStatus(handle);
 
-            /* Poll waiting for the conversion to complete */
-            for (i=0; i < 20; i++)
-            {
-                /* Check for ADC conversion complete */
-                if (AD7799_IsReady(handle))
-                {
-                    /* Read ADC channel */
-                    data = AD7799_ReadData(handle);
-
-                    /* Get current ADC status and check for error */
-                    status = AD7799_ReadStatus(handle);
-
-                    //if (status & AD7799_STAT_ERR)
-                    //    data = ADC_ERROR;
-                    (void)status;
-
-                    break;
-                }
-
-                Task_sleep(10);
-            }
+            //if (status & AD7799_STAT_ERR)
+            //    data = ADC_ERROR;
+            (void)status;
+            break;
         }
+
+        /* Sleep 10ms and try again */
+        Task_sleep(10);
     }
 
     return data;
@@ -811,14 +830,13 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
         /* Turn on ALM LED if system error detected */
         //GPIO_write(Board_LED_ALM, (GetLastError() != XSYSERR_SUCCESS) ? PIN_HIGH : PIN_LOW);
 
-        /* If the ADC's were found and active, then poll each ADC for data */
-        if (g_sys.adcID)
+        /* If any ADC's were found, then poll each ADC for data
+         * and calculate the UV-C level and save in our buffer.
+         */
+        for (i=0; i < g_sys.adcNumChannels; i++)
         {
-            for (i=0; i < g_sys.adcNumChannels; i++)
-            {
-                g_sys.adcData[i] = ADC_ReadChannel(i);
-                g_sys.uvcData[i] = ADC_to_UVC(g_sys.adcData[i]);
-            }
+            g_sys.adcData[i] = ADC_ReadChannel(i);
+            g_sys.uvcData[i] = ADC_to_UVC(g_sys.adcData[i]);
         }
 
 #if 0
@@ -827,7 +845,11 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
             System_printf("CH(%02d)=%x\n", i, g_sys.adcData[i]);
             System_flush();
         }
+
+        if (g_sys.adcNumChannels)
+            System_printf("\n");
 #endif
+
         GPIO_toggle(Board_LED_ACT);
 
         Task_sleep(100);
@@ -848,17 +870,19 @@ float ADC_to_UVC(uint32_t adc)
 }
 
 
-float ADC_to_Fullscale(uint32_t adc)
+float ADC_to_Fullscale(uint32_t adc, uint32_t fullscale)
 {
+    float percentage;
+
     if (adc < 0xFF)
         adc = 0;
 
-    float level = (float)adc;
+    /* The ADC vref is 4.096V and the fullscale value depends
+     * on if the AD7798 or AD7799 is used. The fullscale value
+     * should be set to AD7798_FULLSCALE or AD7799_FULLSCALE.
+     */
 
-    /* The ADC vref is 4.096V */
-    float fullscale = (g_sys.adcID == AD7798_ID) ?  (float)AD7798_FULLSCALE : (float)AD7799_FULLSCALE;
-
-    float percentage = (level / fullscale) * 100.0f;
+    percentage = ((float)adc / (float)fullscale) * 100.0f;
 
     return percentage;
 }

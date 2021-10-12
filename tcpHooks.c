@@ -439,8 +439,8 @@ int op_adc_get_config(int fd, XMOD_ADC_GET_CONFIG* msg)
     msg->hdr.opcode   = XOP_ADC_GET_CONFIG;
     msg->hdr.length   = sizeof(XMOD_ADC_GET_CONFIG);
 
-    msg->adc_num_channels = (uint8_t)g_sys.adcNumChannels;
-    msg->adc_id           = (uint8_t)g_sys.adcID;
+    msg->adc_channels = (uint8_t)g_sys.adcNumChannels;
+    msg->adc_id       = (uint8_t)g_sys.adcID;
 
     return SendReply(fd, &(msg->hdr));
 }
@@ -470,8 +470,8 @@ int op_rtd_get_config(int fd, XMOD_RTD_GET_CONFIG* msg)
     msg->hdr.opcode   = XOP_RTD_GET_CONFIG;
     msg->hdr.length   = sizeof(XMOD_RTD_GET_CONFIG);
 
-    msg->rtd_type         = 4;
-    msg->rtd_num_channels = (uint8_t)g_sys.rtdNumChannels;
+    msg->rtd_type     = 4;
+    msg->rtd_channels = (uint8_t)g_sys.rtdNumChannels;
 
     return SendReply(fd, &(msg->hdr));
 }

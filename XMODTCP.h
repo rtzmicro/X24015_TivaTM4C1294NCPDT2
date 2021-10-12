@@ -49,7 +49,7 @@ typedef struct _XMOD_MSG_HDR {
 typedef struct _XMOD_ADC_GET_CONFIG {
     XMOD_MSG_HDR    hdr;
     uint8_t         adc_id;             /* ADC ID 16 or 24 bit        */
-    uint8_t         adc_num_channels;   /* num of ADC channels active */
+    uint8_t         adc_channels;       /* num of ADC channels active */
 } XMOD_ADC_GET_CONFIG;
 
 /* XOP_ADC_READ_DATA - Read all channels of ADC Data */
@@ -63,7 +63,7 @@ typedef struct _XMOD_ADC_READ_DATA {
 typedef struct _XMOD_RTD_GET_CONFIG {
     XMOD_MSG_HDR    hdr;
     uint8_t         rtd_type;           /* 2, 3 or 4 wire             */
-    uint8_t         rtd_num_channels;   /* num of RTD channels active */
+    uint8_t         rtd_channels;       /* num of RTD channels active */
 } XMOD_RTD_GET_CONFIG;
 
 /* XOP_RTD_READ_DATA - Read all channels of RTD Data */
