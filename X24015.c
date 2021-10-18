@@ -837,6 +837,8 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
         {
             g_sys.adcData[i] = ADC_ReadChannel(i);
             g_sys.uvcData[i] = ADC_to_UVC(g_sys.adcData[i]);
+
+            GPIO_toggle(Board_LED_ACT);
         }
 
 #if 0
@@ -850,7 +852,7 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
             System_printf("\n");
 #endif
 
-        GPIO_toggle(Board_LED_ACT);
+        //GPIO_toggle(Board_LED_ACT);
 
         Task_sleep(100);
     }
