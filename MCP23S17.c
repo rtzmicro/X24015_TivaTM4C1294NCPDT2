@@ -79,9 +79,10 @@ static MCP23S17_InitData initData[] = {
     { MCP_IOCONA, C_SEQOP },                /* Config port A for byte mode */
     { MCP_IOCONB, C_SEQOP },                /* Config port B for byte mode */
     { MCP_IODIRA, 0x00 },                   /* Port A - all pins outputs   */
-    { MCP_IOPOLA, 0xFF },                   /* Invert polarity inputs      */
+    { MCP_GPIOA,  0xFF },                   /* All outputs high initially  */
     { MCP_IODIRB, 0xFF },                   /* Port B - all pins inputs    */
     { MCP_IOPOLB, 0xFF },                   /* Invert polarity inputs      */
+    { MCP_GPPUB,  0xFF },                   /* Enable pull-up resistors    */
 };
 
 /* Default MCP23S17 parameters structure */

@@ -328,7 +328,7 @@ Void tcpWorker(UArg arg0, UArg arg1)
     System_printf("tcpWorker: start fd = 0x%x\n", fd);
     System_flush();
 
-    GPIO_write(Board_LED_ALM, PIN_HIGH);
+    //GPIO_write(Board_LED_ALM, PIN_HIGH);
 
     while(true)
     {
@@ -409,7 +409,7 @@ Void tcpWorker(UArg arg0, UArg arg1)
 
     fdClose(hSelf);
 
-    GPIO_write(Board_LED_ALM, PIN_LOW);
+    //GPIO_write(Board_LED_ALM, PIN_LOW);
 }
 
 //*****************************************************************************

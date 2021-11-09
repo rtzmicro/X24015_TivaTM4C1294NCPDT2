@@ -1,3 +1,27 @@
+/* This software is based on the original works of author Edwin Koch.
+ * The adaptation here has been heavily modified and adapted for use
+ * with TI-RTOS by Robert E Starr, Jr. and RTZ Microsystems, LLC.
+ */
+
+/*
+MIT License
+Copyright (c) 2019 Edwin Koch
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
 
 /* TI-RTOS Kernel Header files */
 #include <stdint.h>
@@ -148,18 +172,12 @@ void MAX31865_delete(MAX31865_Handle handle)
 }
 
 /******************************************************************************
- * @brief Initializes the MAX31865 and checks if the device is present.
- *
- * @param None.
- *
- * @return status - Result of the initialization procedure.
- *                  Example: 1 - if initialization was successful (ID is 0x0B).
- *                           0 - if initialization was unsuccessful.
+ * Initializes the MAX31865 and checks if the device is present.
  ******************************************************************************/
 
 bool MAX31865_init(MAX31865_Handle handle)
 {
-    bool success;
+    bool success = false;
 
     struct {
         uint16_t highFault;
@@ -169,22 +187,78 @@ bool MAX31865_init(MAX31865_Handle handle)
     thresholds.highFault = handle->highFaultThreshold << 1;
     thresholds.lowFault  = handle->lowFaultThreshold << 1;
 
-    uint8_t config = handle->configReg;
+    /* Detect if the chip is there or not */
+    if (MAX31865_probe(handle))
+    {
+        uint8_t config = handle->configReg;
+
+        /* Found, setup the configuration register */
+        success = MAX31865_write(handle,
+                                 MAX31865_REG_CONFIG | MAX31865_WRITE,
+                                 &config, 1);
+        if (success)
+        {
+            /* Write the high and low fault threshold register values */
+            success = MAX31865_write(handle,
+                                     MAX31865_REG_HI_FAULT_MSB | MAX31865_WRITE,
+                                     &thresholds, 4);
+        }
+    }
+
+    return success;
+}
+
+/*****************************************************************************
+ * Probe the command register to detect for presence of MAX31865 chip.
+ *****************************************************************************/
+
+bool MAX31865_probe(MAX31865_Handle handle)
+{
+    bool success;
+    uint8_t config = 0;
+    uint8_t regval = 0;
+
+    /* We initialize a known value, then attempt to read it back */
+    config = MAX31865_CFG_FAULT_CLR(1) | MAX31865_CFG_VBIAS(1);
 
     /* Write the configuration register */
     success = MAX31865_write(handle,
                              MAX31865_REG_CONFIG | MAX31865_WRITE,
                              &config, 1);
+    if (success)
+    {
+        /* Attempt to read the config register results back */
+        success = MAX31865_read(handle,
+                                MAX31865_REG_CONFIG,
+                                &regval, 1);
+        if (success)
+        {
+            /* The chip should reset the fault clear bit, so we
+             * only look for the vbias bit to still being set.
+             * If so, assume the MAX31865 chip is there and alive.
+             */
+            if (regval != MAX31865_CFG_VBIAS(1))
+                success = false;
+        }
+    }
 
-    /* Write the high and low fault register values */
-    success = MAX31865_write(handle,
-                             MAX31865_REG_HI_FAULT_MSB | MAX31865_WRITE,
-                             &thresholds, 4);
+    /* Done probing, reset the fault bit again just to be safe
+     * and reset all other configuration flags bits to zero.
+     */
+
+    config = MAX31865_CFG_FAULT_CLR(1);
+
+    MAX31865_write(handle,
+                   MAX31865_REG_CONFIG | MAX31865_WRITE,
+                   &config, 1);
+
     return success;
 }
 
 /*****************************************************************************
- * Handle the chip select prior to read/write operations
+ * This is the default chip select handler called prior to any read or
+ * write operations. The application can override this if needed during
+ * initialization by setting a new handler in the MAX31865_Params structure.
  *****************************************************************************/
 
 void HandleChipSelect(MAX31865_Handle handle, bool assert)
@@ -195,8 +269,8 @@ void HandleChipSelect(MAX31865_Handle handle, bool assert)
      */
     if (handle->chipselect_proc)
     {
-        handle->chipselect_proc((void*)handle->chipselect_param1,
-                                (void*)handle->chipselect_param2, assert);
+        handle->chipselect_proc(handle->chipselect_param1,
+                                handle->chipselect_param2, assert);
     }
     else
     {
@@ -219,8 +293,8 @@ bool MAX31865_write(
         )
 {
     bool success;
-    uint8_t txBuffer[5];
-    uint8_t rxBuffer[5];
+    uint8_t txBuffer[8];
+    uint8_t rxBuffer[8];
     SPI_Transaction transaction;
 
     Assert_isTrue((datalen <= 4), NULL);
@@ -236,13 +310,13 @@ bool MAX31865_write(
     transaction.rxBuf = (Ptr)&rxBuffer;
 
     /* Assert the chip select */
-     HandleChipSelect(handle, TRUE);
+    HandleChipSelect(handle, TRUE);
 
     /* Initiate SPI transfer of opcode */
     success = SPI_transfer(handle->spiHandle, &transaction);
 
     /* Release the chip select */
-    HandleChipSelect(handle, TRUE);
+    HandleChipSelect(handle, FALSE);
 
     return success;
 }
@@ -259,13 +333,13 @@ bool MAX31865_read(
         )
 {
     bool success;
-    uint8_t txBuffer[5];
-    uint8_t rxBuffer[5];
+    uint8_t txBuffer[8];
+    uint8_t rxBuffer[8];
     SPI_Transaction transaction;
 
     Assert_isTrue((datalen <= 4), NULL);
 
-    memset(txBuffer, 0, sizeof(txBuffer));
+    memset(txBuffer, 0xFF, sizeof(txBuffer));
 
     /* Set register address */
     txBuffer[0] = regaddr;
@@ -282,7 +356,7 @@ bool MAX31865_read(
     success = SPI_transfer(handle->spiHandle, &transaction);
 
     /* Release the chip select */
-    HandleChipSelect(handle, TRUE);
+    HandleChipSelect(handle, FALSE);
 
     /* Return the register data bytes */
     memcpy(databuf, &rxBuffer[1], datalen);
@@ -291,7 +365,8 @@ bool MAX31865_read(
 }
 
 /******************************************************************************
- * Read the ADC value of the RTD and check for threshold errors.
+ * Read the ADC value of the RTD as 15-bit and check for threshold errors.
+ * The least significant bit D0 indicates error if set.
  ******************************************************************************/
 
 uint8_t MAX31865_readADC(MAX31865_Handle handle, uint16_t* data)

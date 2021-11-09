@@ -35,6 +35,31 @@
  *  @endcode
  */
 
+/* This software is based on the original works of author Edwin Koch.
+ * The adaptation here has been heavily modified and adapted for use
+ * with TI-RTOS by Robert E Starr, Jr. and RTZ Microsystems, LLC.
+ */
+
+/*
+MIT License
+Copyright (c) 2019 Edwin Koch
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 #ifndef __MAX31865_H__
 #define __MAX31865_H__
 
@@ -212,6 +237,8 @@ void MAX31865_Params_init(MAX31865_Params *params);
 
 /* Initialize MAX31865 and check if the device is present*/
 bool MAX31865_init(MAX31865_Handle handle);
+
+bool MAX31865_probe(MAX31865_Handle handle);
 
 uint8_t MAX31865_readADC(MAX31865_Handle handle, uint16_t* data);
 
