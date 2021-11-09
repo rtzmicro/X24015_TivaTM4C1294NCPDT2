@@ -2,10 +2,8 @@
  *
  * XMOD Tiva TM4C1294 Processor Card
  *
- * Copyright (C) 2020, RTZ Microsystems, LLC
+ * Copyright (C) 2021, RTZ Microsystems, LLC
  * All Rights Reserved
- *
- * RTZ is registered trademark of RTZ Microsystems, LLC
  *
  ***************************************************************************/
 

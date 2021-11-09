@@ -372,7 +372,7 @@ bool MAX31865_read(
 uint8_t MAX31865_readADC(MAX31865_Handle handle, uint16_t* data)
 {
     uint8_t  reg8;
-    uint16_t reg16;
+    uint8_t  buf[2] = { 0, 0 };
     uint16_t adc;
     uint8_t  status = MAX31865_ERR_SUCCESS;
 
@@ -391,7 +391,7 @@ uint8_t MAX31865_readADC(MAX31865_Handle handle, uint16_t* data)
     Task_sleep(handle->charge_time_delay);
 
     /*
-     * Step-2: Start a one-shot conversion with vbias.
+     * Step-2: Start a one-shot conversion with vbias enabled.
      */
 
     reg8 = handle->configReg | MAX31865_CFG_1SHOT(1) | MAX31865_CFG_VBIAS(1);
@@ -406,9 +406,11 @@ uint8_t MAX31865_readADC(MAX31865_Handle handle, uint16_t* data)
      *         D1 is the LSB, so we shift the lower byte down a bit.
      */
 
-    MAX31865_read(handle, MAX31865_REG_RTD_MSB, &reg16, 2);
+    MAX31865_read(handle, MAX31865_REG_RTD_MSB, &buf, 2);
 
-    adc = (reg16 & 0xF0) | ((reg16 & 0x0F) >> 1);
+    //adc = (uint16_t)((buf[0] << 8) | (buf[1] >> 1));
+
+    adc = (uint16_t)(((buf[0] << 8) | buf[1]) >> 1);
 
     /*
      * Step-4: Now turn vbias back off to save power.
@@ -419,7 +421,7 @@ uint8_t MAX31865_readADC(MAX31865_Handle handle, uint16_t* data)
     MAX31865_write(handle, MAX31865_REG_CONFIG | MAX31865_WRITE, &reg8, 1);
 
     /* Check for fault */
-    if (reg16 & 0x01)
+    if (buf[1] & 0x01)
     {
         uint8_t fault;
 
@@ -564,6 +566,8 @@ void MAX31865_clearFault(MAX31865_Handle handle)
 
 void MAX31865_setHighFaultThreshold(MAX31865_Handle handle, uint16_t threshold)
 {
+    uint8_t buf[2];
+
 #if (MAX31865_THREAD_SAFE > 0)
     IArg key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
 #endif
@@ -572,7 +576,10 @@ void MAX31865_setHighFaultThreshold(MAX31865_Handle handle, uint16_t threshold)
 
     threshold = threshold << 1;
 
-    MAX31865_write(handle, MAX31865_REG_HI_FAULT_MSB | MAX31865_WRITE, &threshold, 2);
+    buf[0] = (uint8_t)(threshold >> 8);
+    buf[1] = (uint8_t)(threshold);
+
+    MAX31865_write(handle, MAX31865_REG_HI_FAULT_MSB | MAX31865_WRITE, buf, 2);
 
 #if (MAX31865_THREAD_SAFE > 0)
     GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
@@ -585,15 +592,18 @@ void MAX31865_setHighFaultThreshold(MAX31865_Handle handle, uint16_t threshold)
 
 void MAX31865_setLowFaultThreshold(MAX31865_Handle handle, uint16_t threshold)
 {
+    uint8_t buf[2];
+
 #if (MAX31865_THREAD_SAFE > 0)
     IArg key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
 #endif
 
-    handle->highFaultThreshold = threshold;
+    handle->lowFaultThreshold = threshold;
 
-    threshold = threshold << 1;
+    buf[0] = (uint8_t)(threshold >> 8);
+    buf[1] = (uint8_t)(threshold);
 
-    MAX31865_write(handle, MAX31865_REG_LO_FAULT_MSB | MAX31865_WRITE, &threshold, 2);
+    MAX31865_write(handle, MAX31865_REG_LO_FAULT_MSB | MAX31865_WRITE, &buf, 2);
 
 #if (MAX31865_THREAD_SAFE > 0)
     GateMutex_leave(GateMutex_handle(&(handle->gate)), key);

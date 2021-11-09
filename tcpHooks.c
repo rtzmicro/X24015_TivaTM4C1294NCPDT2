@@ -1,4 +1,12 @@
-/*
+/* ============================================================================
+ *
+ * XMOD Data Capture and Telemetry Systems
+ *
+ * Copyright (C) 2021, RTZ Microsystems, LLC
+ * All Rights Reserved
+ *
+ * ============================================================================
+ *
  * Copyright (c) 2014, Texas Instruments Incorporated
  * All rights reserved.
  *
@@ -28,12 +36,7 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
-/*
- *    ======== tcpEchoHooks.c ========
- *    Contains non-BSD sockets code (NDK Network Open Hook)
- */
+ * ============================================================================ */
 
 /* XDCtools Header files */
 #include <xdc/std.h>

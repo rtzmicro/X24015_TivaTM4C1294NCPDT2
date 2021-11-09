@@ -1,8 +1,11 @@
-/*
- * X24015.h : created 4/8/2020
+/* ============================================================================
  *
- * Copyright (C) 2020, Robert E. Starr, Jr.
- */
+ * XMOD Data Capture and Telemetry Systems
+ *
+ * Copyright (C) 2021, RTZ Microsystems, LLC
+ * All Rights Reserved
+ *
+ * ============================================================================ */
 
 #ifndef __XMOD_24015_H
 #define __XMOD_24015_H

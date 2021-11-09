@@ -1,7 +1,8 @@
 /******************************************************************************
- *   @file   AD7799.c
- *   @brief  Implementation of AD7799 Driver.
- *   @author Bancisor MIhai
+ * XMOD Data Capture and Telemetry Systems
+ *
+ * Copyright (C) 2021, RTZ Microsystems, LLC
+ * All Rights Reserved
  ******************************************************************************
  * Copyright 2012(c) Analog Devices, Inc.
  *

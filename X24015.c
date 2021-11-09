@@ -1,4 +1,12 @@
-/*
+/* ============================================================================
+ *
+ * XMOD Data Capture and Telemetry Systems
+ *
+ * Copyright (C) 2021, RTZ Microsystems, LLC
+ * All Rights Reserved
+ *
+ * ============================================================================
+ *
  * Copyright (c) 2014, Texas Instruments Incorporated
  * All rights reserved.
  *
@@ -28,7 +36,7 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+ * ============================================================================ */
 
 /* XDCtools Header files */
 #include <xdc/std.h>
@@ -878,7 +886,7 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
         /* If any ADC channels were found, then poll each ADC for data
          * and calculate the UV-C level and save in our buffer.
          */
-#if 0
+
         for (i=0; i < g_sys.adcNumChannels; i++)
         {
             g_sys.adcData[i] = ADC_ReadChannel(i);
@@ -886,16 +894,16 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
 
             GPIO_toggle(Board_LED_ACT);
         }
-#endif
 
         /* If any RTD channels were found, then poll each RTD converter for data
          * and calculate the temperature in Celcius and save in our table.
          */
-        for (i=0; i < 1; i++)   //g_sys.rtdNumChannels
+
+        for (i=0; i < g_sys.rtdNumChannels; i++)
         {
             g_sys.rtdTemp[i] = RTD_ReadChannel(i);
 
-            System_printf("Temp C %.2f\n", g_sys.rtdTemp[i]);
+            System_printf("Temp C=%2f F=%2f\n", g_sys.rtdTemp[i], CELCIUS_TO_FAHRENHEIT(g_sys.rtdTemp[i]));
             System_flush();
 
             GPIO_toggle(Board_LED_ACT);
@@ -911,8 +919,6 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
         if (g_sys.adcNumChannels)
             System_printf("\n");
 #endif
-
-        //GPIO_toggle(Board_LED_ACT);
 
         Task_sleep(100);
     }
