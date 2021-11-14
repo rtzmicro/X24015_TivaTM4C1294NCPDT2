@@ -101,29 +101,6 @@ SYSDATA     g_sys;      /* Global system variables and data storage */
 // Global ADC Card Data
 //*****************************************************************************
 
-/* This defines the number of ADC cards loaded in the rack, the number
- * of converters per card, and the number of channels in the system.
- */
-//#define ADC_NUM_CARDS               2
-#define ADC_MAX_CARDS               4
-#define ADC_CONVERTERS_PER_CARD     2
-#define ADC_CHANNELS_PER_CARD       (2 * ADC_CONVERTERS_PER_CARD)
-
-#define ADC_ERROR                   0xFFFFFFFF
-
-/* Each 24035 ADC card has two AD7798 converters per card,
- * each with it's own chip select. This provides a total of
- * four ADC channels per card.
- */
-typedef struct _ADC_CONVERTER {
-    AD7799_Handle   handle;         /* handle to the AD7799 driver */
-    uint32_t        gpiocs;         /* chip select for the ADC     */
-} ADC_CONVERTER;
-
-typedef struct _ADC_CARD {
-    ADC_CONVERTER   converter[ADC_CONVERTERS_PER_CARD];
-} ADC_CARD;
-
 /* This table contains the handle to each ADC channel allocated in
  * the system along with the chip select SPI handle to the device.
  */
@@ -141,30 +118,6 @@ static ADC_CARD g_adcCard[ADC_MAX_CARDS] = {
 //*****************************************************************************
 // Global RTD Card Data
 //*****************************************************************************
-
-/* This defines the number of RTD cards loaded in the rack, the number of
- * converters per card, and the number of channels in the system.
- */
-#define RTD_NUM_CARDS               1
-#define RTD_MAX_CARDS               4
-#define RTD_CHANNELS_PER_CARD       4
-
-/* Each 24037 RTD card has four RTD converters(channels). Each RTD
- * converter requires it's own chip select. The chip selects are driven
- * and de-multiplexed by an MCP23S17 I/O expander chip on the card. Thus
- * one SPI bus is used for chip selects and another for the RTD devices.
- */
-typedef struct _RTD_CHANNEL {
-    MAX31865_Handle handleRTD;      /* Handle to RTD object for channel */
-    uint8_t         csMaskIOX;      /* The IO expander gpio pin for CS  */
-} RTD_CHANNEL;
-
-typedef struct _RTD_CARD {
-    RTD_CHANNEL     channels[RTD_CHANNELS_PER_CARD];
-    MCP23S17_Handle handleIOX;      /* Handle of cards I/O expander */
-    uint8_t         dipSwitch;      /* config DIP switch on card    */
-    uint32_t        chipselIOX;     /* chip select for I/O expander */
-} RTD_CARD;
 
 /* This table contains the handle to each RTD card/channels allocated in
  * the system along with the various chip selects to access these.
@@ -188,20 +141,18 @@ static bool Init_Peripherals(void);
 static bool Init_Devices(void);
 
 static uint32_t RTD_AllocCards(void);
-static float RTD_ReadChannel(uint32_t channel);
+static uint32_t RTD_ReadChannel(uint32_t channel);
 static void MAX31865_ChipSelect_Proc(void* param1, void* param2, bool assert);
 
 static uint32_t ADC_AllocCards(void);
 static uint32_t ADC_ReadChannel(uint32_t channel);
+static float ADC_to_UVPower(uint32_t adc);
 
 static int ReadGUIDS(I2C_Handle handle, uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6]);
 
 #if (DIV_CLOCK_ENABLED > 0)
 static void EnableClockDivOutput(uint32_t div);
 #endif
-
-float ADC_to_UVC(uint32_t adc);
-float ADC_to_Fullscale(uint32_t adc, uint32_t fullscale);
 
 //*****************************************************************************
 // Main Entry Point
@@ -604,6 +555,23 @@ uint32_t ADC_AllocCards(void)
 }
 
 //*****************************************************************************
+// This function takes and ADC value and converts it to UV-C level in
+// milliwatts per centimeter squared (mW/cm2)
+//*****************************************************************************
+
+float ADC_to_UVPower(uint32_t adc)
+{
+    float power;
+
+    if (adc < 0xFF)
+        adc = 0;
+
+    power = (float)adc / 6323.07f;
+
+    return power;
+}
+
+//*****************************************************************************
 //
 //
 //*****************************************************************************
@@ -611,7 +579,8 @@ uint32_t ADC_AllocCards(void)
 uint32_t ADC_ReadChannel(uint32_t channel)
 {
     uint32_t i;
-    uint32_t data = ADC_ERROR;
+    uint32_t rc = 0;
+    uint32_t adc = 0;
     uint8_t status = 0;
 
     size_t card_index = channel / ADC_CHANNELS_PER_CARD;
@@ -653,13 +622,19 @@ uint32_t ADC_ReadChannel(uint32_t channel)
         if (AD7799_IsReady(handle))
         {
             /* Read ADC channel */
-            data = AD7799_ReadData(handle);
+            adc = AD7799_ReadData(handle);
 
             /* Get current ADC status and check for error */
             status = AD7799_ReadStatus(handle);
 
             //if (status & AD7799_STAT_ERR)
-            //    data = ADC_ERROR;
+            //    res = ADC_ERROR;
+
+            {
+                g_sys.uvcADC[channel] = adc;
+                g_sys.uvcPower[channel] = ADC_to_UVPower(adc);
+            }
+
             (void)status;
             break;
         }
@@ -668,46 +643,7 @@ uint32_t ADC_ReadChannel(uint32_t channel)
         Task_sleep(10);
     }
 
-    return data;
-}
-
-//*****************************************************************************
-// This function takes and ADC value and converts it to UV-C level in
-// milliwatts per centimeter squared (mW/cm2)
-//*****************************************************************************
-
-float ADC_to_UVC(uint32_t adc)
-{
-    float power;
-
-    if (adc < 0xFF)
-        adc = 0;
-
-    power = (float)adc / 6323.07f;
-
-    return power;
-}
-
-//*****************************************************************************
-// This function returns a value between 0-100 given an ADC value. A value of
-// of 100 indicates a full scale ADC value.
-//*****************************************************************************
-
-float ADC_to_Fullscale(uint32_t adc, uint32_t fullscale)
-{
-    float percentage;
-
-    if (adc < 0xFF)
-        adc = 0;
-
-    /* The ADC vref is 4.096V and the fullscale value depends
-     * on if the AD7798 or AD7799 is used. The fullscale value
-     * should be set to AD7798_FULLSCALE or AD7799_FULLSCALE.
-     */
-
-    percentage = ((float)adc / (float)fullscale) * 100.0f;
-
-    return percentage;
+    return rc;
 }
 
 //*****************************************************************************
@@ -751,14 +687,18 @@ uint32_t RTD_AllocCards(void)
         /* If DIP switch 1 is set, then configure for 3-wire mode,
          * otherwise 2 or 4 wire is assumed.
          */
+#if 0
         if (card->dipSwitch & 0x01)
             configReg = MAX31865_CFG_3WIRE_RTD(1);
         else
             configReg = 0;
+#endif
 
         /*
-         * Create and initialize the RTD channel objects for this card
+         * Create and initialize four RTD channel objects for this card
          */
+
+        uint8_t swbit = 1;
 
         for (i=0; i < RTD_CHANNELS_PER_CARD; i++)
         {
@@ -767,6 +707,29 @@ uint32_t RTD_AllocCards(void)
             /* Initialize the RTD device object parameters */
             MAX31865_Params params;
             MAX31865_Params_init(&params);
+
+            /* Each card has a DIP switch with four positions that indicate
+             * if a channel is configured for 3 or 2/4 wire mode. If the DIP
+             * switch is enabled, the jumper for 3-wire mode must be changed
+             * also to allow for 3-wire operation on any single channel. This
+             * scheme allows us to support a mix of 2, 3 or 4 wire modes on
+             * each channel.
+             */
+
+            if ((card->dipSwitch & swbit) == swbit)
+            {
+                configReg = MAX31865_CFG_3WIRE_RTD(1);
+
+                System_printf("RTD Card %d configured for 3-WIRE mode\n");
+                System_flush();
+            }
+            else
+            {
+                configReg = 0;
+
+                System_printf("RTD Card %d configured for 2/4-WIRE mode\n");
+                System_flush();
+            }
 
             params.charge_time_delay     = MAX31865_CHARGE_TIME;
             params.conversion_time_delay = MAX31865_CONVERSION_TIME;
@@ -790,6 +753,9 @@ uint32_t RTD_AllocCards(void)
             {
                 channels += 1;
             }
+
+            /* Shift bit mask to the next DIP switch position we test next */
+            swbit <<= 1;
         }
     }
 
@@ -825,28 +791,40 @@ void MAX31865_ChipSelect_Proc(void* param1, void* param2, bool assert)
 //
 //*****************************************************************************
 
-float RTD_ReadChannel(uint32_t channel)
+uint32_t RTD_ReadChannel(uint32_t channel)
 {
-    float temp = 0.0f;
+    uint8_t status;
+    uint16_t adc;
+    uint32_t rc = RTD_ERROR;
+    float tempC;
 
     size_t card_index = channel / RTD_CHANNELS_PER_CARD;
 
-    if (card_index > RTD_CHANNELS_PER_CARD)
-        return temp;
+    if (card_index >= RTD_CHANNELS_PER_CARD)
+        return rc;
 
     RTD_CARD *card = &g_rtdCard[card_index];
 
     MAX31865_Handle handle = card->channels[channel % 4].handleRTD;
 
-    if (!handle)
-        return temp;
+    if (handle)
+    {
+        /* Read the raw ADC value from the RTD */
+        status = MAX31865_readADC(handle, &adc);
 
-    uint8_t status = MAX31865_readCelsius(handle, &temp);
+        if (status == MAX31865_ERR_SUCCESS)
+        {
+            /* Convert ADC to Celcius and store in global channel data table */
+            tempC =  MAX31865_ADC_to_Celcius(handle, adc);
 
-    if (status != MAX31865_ERR_SUCCESS)
-        temp = 0.0f;
+            g_sys.rtdADC[channel] = adc;
+            g_sys.rtdTempC[channel] = tempC;
 
-    return temp;
+            rc = 0;
+        }
+    }
+
+    return rc;
 }
 
 //*****************************************************************************
@@ -855,8 +833,7 @@ float RTD_ReadChannel(uint32_t channel)
 
 Void MainTaskFxn(UArg arg0, UArg arg1)
 {
-    //Error_Block eb;
-	//Task_Params taskParams;
+    size_t i;
 
     /* Read any system configuration parameters from EPROM. If config
      * hasn't been initialized, then initialize it with defaults.
@@ -878,47 +855,44 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
 
     while (true)
     {
-        size_t i;
-
         /* Turn on ALM LED if system error detected */
         GPIO_write(Board_LED_ALM, (GetLastError() != XSYSERR_SUCCESS) ? PIN_HIGH : PIN_LOW);
 
-        /* If any ADC channels were found, then poll each ADC for data
-         * and calculate the UV-C level and save in our buffer.
+        /* If any ADC channels were found, then read the ADC for the
+         * channel and store the results in global data buffer.
          */
 
         for (i=0; i < g_sys.adcNumChannels; i++)
         {
-            g_sys.adcData[i] = ADC_ReadChannel(i);
-            g_sys.uvcData[i] = ADC_to_UVC(g_sys.adcData[i]);
+            /* Read the ADC value and check for any error. If no value convert
+             * the ADC value to UV level in mW/cm2 and store in the data table.
+             */
+            if (ADC_ReadChannel(i) != ADC_ERROR)
+            {
+                //System_printf("UV-C[%d] %f\n", i, g_sys.uvcPower[i]);
+                //System_flush();
 
-            GPIO_toggle(Board_LED_ACT);
+                GPIO_toggle(Board_LED_ACT);
+            }
         }
 
-        /* If any RTD channels were found, then poll each RTD converter for data
-         * and calculate the temperature in Celcius and save in our table.
+        /* If any RTD channels were found, then read the ADC for the
+         * channel and store the results in global data buffer.
          */
 
         for (i=0; i < g_sys.rtdNumChannels; i++)
         {
-            g_sys.rtdTemp[i] = RTD_ReadChannel(i);
+            /* Read the RTD ADC value and check for any error. If no value convert
+             * the ADC value to Celcius temperature value in the data table.
+             */
+            if (RTD_ReadChannel(i) != RTD_ERROR)
+            {
+                System_printf("Temp[%d] %f\n", i, CELCIUS_TO_FAHRENHEIT(g_sys.rtdTempC[i]));
+                System_flush();
 
-            System_printf("Temp C=%2f F=%2f\n", g_sys.rtdTemp[i], CELCIUS_TO_FAHRENHEIT(g_sys.rtdTemp[i]));
-            System_flush();
-
-            GPIO_toggle(Board_LED_ACT);
+                GPIO_toggle(Board_LED_ACT);
+            }
         }
-
-#if 0
-        for (i=0; i < g_sys.adcNumChannels; i++)
-        {
-            System_printf("CH(%02d)=%x\n", i, g_sys.adcData[i]);
-            System_flush();
-        }
-
-        if (g_sys.adcNumChannels)
-            System_printf("\n");
-#endif
 
         Task_sleep(100);
     }

@@ -456,30 +456,9 @@ uint8_t MAX31865_readADC(MAX31865_Handle handle, uint16_t* data)
  *
  ******************************************************************************/
 
-uint8_t MAX31865_readRTD_ohm(MAX31865_Handle handle, float* ohms)
+float MAX31865_ADC_to_Celcius(MAX31865_Handle handle, uint16_t adc)
 {
-    uint16_t adc;
-    uint8_t status;
-
-    *ohms = 0.0f;
-
-    if ((status = MAX31865_readADC(handle, &adc)) == MAX31865_ERR_SUCCESS)
-    {
-        *ohms = ((float)adc * (float)(handle->rref)) / 32768.0f;
-    }
-
-    return status;
-}
-
-/******************************************************************************
- *
- ******************************************************************************/
-
-uint8_t MAX31865_readCelsius(MAX31865_Handle handle, float* celcius)
-{
-    float x;
-    float ohms;
-    uint8_t status;
+    float celcius;
 
     /* temperature curve polynomial approximation coefficients */
     static const float _a1 = 2.55865721669;
@@ -488,36 +467,17 @@ uint8_t MAX31865_readCelsius(MAX31865_Handle handle, float* celcius)
     static const float _a4 = 0.000000000691;
     static const float _a5 = 7.31888555389e-13;
 
-    *celcius = 0.0f;
+    /* First calculate the RTD resistance in ohms from the ADC value */
+    float ohms = ((float)adc * (float)(handle->rref)) / 32768.0f;
 
-    if ((status = MAX31865_readRTD_ohm(handle, &ohms)) == MAX31865_ERR_SUCCESS)
-    {
-        /* Return Celsius temp calculated using Horners method as
-         * this reduces the multiplications and additions needed.
-         */
-        x = (float)handle->rtd - ohms;
+    /* Celsius temperature value is calculated using Horners method
+     * as this reduces the multiplications and additions needed.
+     */
+    float x = (float)handle->rtd - ohms;
 
-        *celcius = -(x * (_a1 + x * (_a2 + x * (_a3 + x * (_a4 + x * _a5)))));
-    }
+    celcius = -(x * (_a1 + x * (_a2 + x * (_a3 + x * (_a4 + x * _a5)))));
 
-    return status;
-}
-
-/******************************************************************************
- *
- ******************************************************************************/
-
-uint8_t MAX31865_readKelvin(MAX31865_Handle handle, float* kelvin)
-{
-    uint8_t status;
-    float celcius;
-
-    if ((status = MAX31865_readCelsius(handle, &celcius)) == MAX31865_ERR_SUCCESS)
-    {
-        *kelvin = celcius + 273.15f;
-    }
-
-    return status;
+    return celcius;
 }
 
 /******************************************************************************

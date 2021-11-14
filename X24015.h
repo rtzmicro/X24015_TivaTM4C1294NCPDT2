@@ -49,6 +49,62 @@
 #define MAKEREV(v, r)       ((v << 16) | (r & 0xFFFF))
 
 //*****************************************************************************
+// ADC Card Data Structures
+//*****************************************************************************
+
+/* This defines the max number of ADC cards per rack, the number
+ * of converters per card, and the number of channels in the system.
+ */
+#define ADC_MAX_CARDS               4
+#define ADC_CONVERTERS_PER_CARD     2
+#define ADC_CHANNELS_PER_CARD       (2 * ADC_CONVERTERS_PER_CARD)
+
+#define ADC_ERROR                   0xFFFFFFFF
+
+/* Each 24035 ADC card has two AD7798 converters per card,
+ * each with it's own chip select. This provides a total of
+ * four ADC channels per card.
+ */
+typedef struct _ADC_CONVERTER {
+    AD7799_Handle   handle;         /* handle to the AD7799 driver */
+    uint32_t        gpiocs;         /* chip select for the ADC     */
+} ADC_CONVERTER;
+
+typedef struct _ADC_CARD {
+    ADC_CONVERTER   converter[ADC_CONVERTERS_PER_CARD];
+} ADC_CARD;
+
+//*****************************************************************************
+// RTD Card Data Structures
+//*****************************************************************************
+
+/* This defines the max number of RTD cards per rack, the number of
+ * converters per card, and the number of channels in the system.
+ */
+#define RTD_NUM_CARDS               1
+#define RTD_MAX_CARDS               4
+#define RTD_CHANNELS_PER_CARD       4
+
+#define RTD_ERROR                   0xFFFFFFFF
+
+/* Each 24037 RTD card has four RTD converters(channels). Each RTD
+ * converter requires it's own chip select. The chip selects are driven
+ * and de-multiplexed by an MCP23S17 I/O expander chip on the card. Thus
+ * one SPI bus is used for chip selects and another for the RTD devices.
+ */
+typedef struct _RTD_CHANNEL {
+    MAX31865_Handle handleRTD;      /* Handle to RTD object for channel */
+    uint8_t         csMaskIOX;      /* The IO expander gpio pin for CS  */
+} RTD_CHANNEL;
+
+typedef struct _RTD_CARD {
+    RTD_CHANNEL     channels[RTD_CHANNELS_PER_CARD];
+    MCP23S17_Handle handleIOX;      /* Handle of cards I/O expander */
+    uint8_t         dipSwitch;      /* config DIP switch on card    */
+    uint32_t        chipselIOX;     /* chip select for I/O expander */
+} RTD_CARD;
+
+//*****************************************************************************
 //GLOBAL RUN-TIME DATA
 //*****************************************************************************
 
@@ -74,12 +130,12 @@ typedef struct _SYSDATA
     /* AD7799 ADC data */
     uint8_t         adcID;                  /* chip ID, 16 or 24 bit type */
     uint32_t        adcNumChannels;         /* num of ADC channels active */
-    uint32_t        adcData[16];
-    float           uvcData[16];
+    uint32_t        uvcADC[16];             /* the raw ADC value          */
+    float           uvcPower[16];           /* the UV-C value in mW/cm2   */
     /* MAX31865 RTD data */
     uint32_t        rtdNumChannels;         /* num of ADC channels active */
-    uint32_t        rtdData[16];
-    float           rtdTemp[16];            /* temperature C data         */
+    uint32_t        rtdADC[16];             /* the raw ADC value          */
+    float           rtdTempC[16];           /* converted to Celcius value */
 } SYSDATA;
 
 /* Global System Error Codes for SYSDATA.lastError */
@@ -106,10 +162,8 @@ typedef struct _SYSCONFIG
 } SYSCONFIG;
 
 //*****************************************************************************
-//
+// External Data Items
 //*****************************************************************************
-
-/*** External Data Items ***/
 
 extern SYSDATA g_sys;
 extern SYSCONFIG g_cfg;

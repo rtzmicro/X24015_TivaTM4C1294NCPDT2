@@ -457,8 +457,8 @@ int op_adc_read_data(int fd, XMOD_ADC_READ_DATA* msg)
 
     for (i=0; i < XMOD_ADC_CHANNELS; i++)
     {
-        msg->adc_data[i]  = g_sys.adcData[i];   /* raw ADC data */
-        msg->uvc_power[i] = g_sys.uvcData[i];   /* UV-C power  mW/cm2 */
+        msg->adc_data[i]  = g_sys.uvcADC[i];    /* raw ADC data */
+        msg->uvc_power[i] = g_sys.uvcPower[i];  /* UV-C power  mW/cm2 */
     }
 
     return SendReply(fd, &(msg->hdr));
@@ -488,8 +488,8 @@ int op_rtd_read_data(int fd, XMOD_RTD_READ_DATA* msg)
 
     for (i=0; i < XMOD_RTD_CHANNELS; i++)
     {
-        msg->adc_data[i] = g_sys.rtdData[i];    /* raw ADC data */
-        msg->rtd_temp[i] = g_sys.rtdTemp[i];    /* temp celcius */
+        msg->adc_data[i] = g_sys.rtdADC[i];     /* raw ADC data */
+        msg->rtd_temp[i] = g_sys.rtdTempC[i];   /* temp celcius */
     }
 
     return SendReply(fd, &(msg->hdr));

@@ -50,8 +50,11 @@
 #include <ti/sysbios/gates/GateMutex.h>
 #endif
 
-/* Simple macro to convert to Fahrenheit */
+/* Simple macro to convert to Fahrenheit units */
 #define CELCIUS_TO_FAHRENHEIT(c)    ((float)c * 1.8f + 32.0f)
+
+/* Simple macro to convert to Kelvin units */
+#define CELCIUS_TO_KELVIN(c)        ((float)cc + 273.15f)
 
 /******************************************************************************/
 /* MAX31865 RTD-to-Digital Converter                                          */
@@ -216,6 +219,8 @@ bool MAX31865_init(MAX31865_Handle handle);
 bool MAX31865_probe(MAX31865_Handle handle);
 
 uint8_t MAX31865_readADC(MAX31865_Handle handle, uint16_t* data);
+
+float MAX31865_ADC_to_Celcius(MAX31865_Handle handle, uint16_t adc);
 
 uint8_t MAX31865_readRTD_ohm(MAX31865_Handle handle, float* ohms);
 
