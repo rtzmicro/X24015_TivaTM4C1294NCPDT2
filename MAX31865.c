@@ -269,8 +269,9 @@ void HandleChipSelect(MAX31865_Handle handle, bool assert)
      */
     if (handle->chipselect_proc)
     {
-        handle->chipselect_proc(handle->chipselect_param1,
-                                handle->chipselect_param2, assert);
+        handle->chipselect_proc(assert,
+                                handle->chipselect_param1,
+                                handle->chipselect_param2);
     }
     else
     {

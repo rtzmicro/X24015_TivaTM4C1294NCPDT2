@@ -142,7 +142,7 @@ static bool Init_Devices(void);
 
 static uint32_t RTD_AllocCards(void);
 static uint32_t RTD_ReadChannel(uint32_t channel);
-static void MAX31865_ChipSelect_Proc(void* param1, void* param2, bool assert);
+static void MAX31865_ChipSelect_Proc(bool assert, void* param1, void* param2);
 
 static uint32_t ADC_AllocCards(void);
 static uint32_t ADC_ReadChannel(uint32_t channel);
@@ -771,7 +771,7 @@ uint32_t RTD_AllocCards(void)
  * expander chip to assert the chip select.
  */
 
-void MAX31865_ChipSelect_Proc(void* param1, void* param2, bool assert)
+void MAX31865_ChipSelect_Proc(bool assert, void* param1, void* param2)
 {
     RTD_CARD *card = (RTD_CARD*)param1;
 
@@ -821,6 +821,11 @@ uint32_t RTD_ReadChannel(uint32_t channel)
             g_sys.rtdTempC[channel] = tempC;
 
             rc = 0;
+        }
+        else
+        {
+            g_sys.rtdADC[channel] = 0xFFFFFFFF;
+            g_sys.rtdTempC[channel] = 0.0f;
         }
     }
 

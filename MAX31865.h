@@ -106,7 +106,7 @@
  * select. Otherwise, the callback function is called
  * and must handle controlling the chip select line.
  */
-typedef void (*fptr_chipsel)(void* param1, void* param2, bool assert);
+typedef void (*fptr_chipsel)(bool assert, void* param1, void* param2);
 
 /*!
  *  @brief MAX31865 Object
