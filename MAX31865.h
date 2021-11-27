@@ -28,6 +28,18 @@
  *  spiHandle = SPI_open(Board_SPI0, &spiParams);
  *
  *  MAX31865_Params_init(&ad7799Params);
+ *  params.charge_time_delay     = MAX31865_CHARGE_TIME;
+ *  params.conversion_time_delay = MAX31865_CONVERSION_TIME;
+ *  params.rtd                   = 100;
+ *  params.rref                  = 400;
+ *  params.lowFaultThreshold     = 0;
+ *  params.highFaultThreshold    = 0xFFFF;
+ *  params.configReg             = MAX31865_CFG_3WIRE_RTD(0);
+ *  params.chipselect            = X24015_GPIO_PM0;
+ *  params.chipselect_param1     = 0;
+ *  params.chipselect_param2     = 0;
+ *  params.chipselect_proc       = MAX31865_ChipSelect_Proc;
+ *
  *  ad7799Handle = MAX31865_create(spiHandle, Board_CS, &ad7799Params);
  *  if (!handle) {
  *      System_printf("MAX31865_create failed");
@@ -124,11 +136,11 @@ typedef struct MAX31865_Object {
 #endif
     uint32_t        charge_time_delay;      /* Charge time for vbias enable  */
     uint32_t        conversion_time_delay;  /* ADC conversion time           */
-    uint16_t        rtd;
-    uint16_t        rref;
-    uint16_t        lowFaultThreshold;      /* Low fault threshold value      */
-    uint16_t        highFaultThreshold;     /* High fault threshold value     */
-    uint8_t         configReg;              /* Configuration register value   */
+    uint16_t        rtd;                    /* RTD type impedance, 100 ohm   */
+    uint16_t        rref;                   /* reference resistors 400 ohms  */
+    uint16_t        lowFaultThreshold;      /* Low fault threshold value     */
+    uint16_t        highFaultThreshold;     /* High fault threshold value    */
+    uint8_t         configReg;              /* Configuration register value  */
 } MAX31865_Object;
 
 /*!

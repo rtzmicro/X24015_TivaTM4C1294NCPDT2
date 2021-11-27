@@ -106,7 +106,7 @@ MAX31865_Handle MAX31865_construct(
 {
     /* Initialize object SPI handle */
     obj->spiHandle             = spiHandle;
-    /* Initialize chip select callback  nd parameters */
+    /* Initialize chip select callback and parameters */
     obj->chipselect            = params->chipselect;
     obj->chipselect_proc       = params->chipselect_proc;
     obj->chipselect_param1     = params->chipselect_param1;
