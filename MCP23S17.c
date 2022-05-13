@@ -73,7 +73,7 @@
  * Default Register Configuration Data (all outputs)
  *****************************************************************************/
 
-/* Default MCP23S17SO configuration */
+/* Default MCP23S17 configuration */
 
 static MCP23S17_InitData initData[] = {
     { MCP_IOCONA, C_SEQOP },                /* Config port A for byte mode */
@@ -88,10 +88,17 @@ static MCP23S17_InitData initData[] = {
 /* Default MCP23S17 parameters structure */
 
 const MCP23S17_Params MCP23S17_defaultParams = {
-    .initData      = initData,
-    .initDataCount = sizeof(initData)/sizeof(MCP23S17_InitData),
-    .gpioCSIndex   = 0
+    .initData         = initData,
+    .initDataCount    = sizeof(initData)/sizeof(MCP23S17_InitData),
+    .gpioCSIndex      = 0,
+    .chipselectProc   = NULL,
+    .chipselectParam1 = NULL,
+    .chipselectParam2 = NULL
 };
+
+/* Static Function Prototypes */
+
+static void HandleChipSelect(MCP23S17_Handle handle, bool assert);
 
 /*****************************************************************************
  * Initialize default driver parameters
@@ -114,14 +121,17 @@ MCP23S17_Handle MCP23S17_construct(
         MCP23S17_Params *params
         )
 {
-    /* Initialize the object's fields */
-    obj->spiHandle   = spiHandle;
-    obj->gpioCSIndex = params->gpioCSIndex;
-
+    /* Initialize the object members */
+    obj->spiHandle        = spiHandle;
+    /* Initialize chip select callback and parameters */
+    obj->gpioCSIndex      = params->gpioCSIndex;
+    obj->chipselectProc   = params->chipselectProc;
+    obj->chipselectParam1 = params->chipselectParam1;
+    obj->chipselectParam2 = params->chipselectParam2;
+    /* Initialize object data members */
 #if (MCP23S17_THREAD_SAFE > 0)
     GateMutex_construct(&(obj->gate), NULL);
 #endif
-
     return (MCP23S17_Handle)obj;
 }
 
@@ -162,16 +172,13 @@ MCP23S17_Handle MCP23S17_create(
 
     handle = MCP23S17_construct(obj, spiHandle, params);
 
-    if (handle != NULL)
+    if (params)
     {
-        if (params)
-        {
-            /* Default initialize the I/O expander */
-            initData  = params->initData;
-            initCount = params->initDataCount;
+        /* Default initialize the I/O expander */
+        initData  = params->initData;
+        initCount = params->initDataCount;
 
-            MCP23S17_init(handle, initData, initCount);
-        }
+        MCP23S17_init(handle, initData, initCount);
     }
 
     return handle;
@@ -216,6 +223,35 @@ bool MCP23S17_init(
 }
 
 /*****************************************************************************
+ * This is the default chip select handler called prior to any read or
+ * write operations. The application can override this if needed during
+ * initialization by setting a new handler in the MAX31865_Params structure.
+ *****************************************************************************/
+
+void HandleChipSelect(MCP23S17_Handle handle, bool assert)
+{
+    /* Has the user assigned chip select handler to this object
+     * already? If so, then we just need to call the users
+     * handler and pass any arguments.
+     */
+
+    if (handle->chipselectProc)
+    {
+        handle->chipselectProc(assert,
+                               handle->chipselectParam1,
+                               handle->chipselectParam2);
+    }
+    else
+    {
+        /* No user assigned callback handler has been set, so we
+         * just set the chip select pin to the state specified.
+         */
+
+        GPIO_write(handle->gpioCSIndex, (assert) ? PIN_LOW : PIN_HIGH);
+    }
+}
+
+/*****************************************************************************
  * Write a register command byte to MCP23S17 expansion I/O controller.
  *****************************************************************************/
 
@@ -244,19 +280,20 @@ bool MCP23S17_write(
 #endif
 
 	/* Hold SPI chip select low */
-	GPIO_write(handle->gpioCSIndex, PIN_LOW);
+	HandleChipSelect(handle, TRUE);
 
 	/* Initiate SPI transfer of opcode */
 
 	success = SPI_transfer(handle->spiHandle, &transaction);
+
+    /* Release SPI chip select */
+    HandleChipSelect(handle, FALSE);
 
 	if (!success)
 	{
 	    System_printf("Unsuccessful SPI transfer to MCP23S17\n");
 	}
 
-	/* Release SPI chip select */
-	GPIO_write(handle->gpioCSIndex, PIN_HIGH);
 
 #if (MCP23S17_THREAD_SAFE > 0)
     GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
@@ -294,18 +331,13 @@ bool MCP23S17_read(
 #endif
 
 	/* Hold SPI chip select low */
-	GPIO_write(handle->gpioCSIndex, PIN_LOW);
+    HandleChipSelect(handle, TRUE);
 
 	/* Initiate SPI transfer of opcode */
     success = SPI_transfer(handle->spiHandle, &transaction);
 
-    if (!success)
-	{
-	    System_printf("Unsuccessful SPI transfer to MCP23S17\n");
-	}
-
 	/* Release SPI chip select */
-	GPIO_write(handle->gpioCSIndex, PIN_HIGH);
+    HandleChipSelect(handle, FALSE);
 
 #if (MCP23S17_THREAD_SAFE > 0)
     GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
@@ -313,6 +345,11 @@ bool MCP23S17_read(
 
 	/* Return the register data byte */
 	*pucData = rxBuffer[2];
+
+	if (!success)
+    {
+        System_printf("Unsuccessful SPI transfer to MCP23S17\n");
+    }
 
 	return success;
 }

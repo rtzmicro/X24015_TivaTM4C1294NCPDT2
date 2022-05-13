@@ -716,17 +716,18 @@ uint32_t RTD_AllocCards(void)
              * each channel.
              */
 
+            /* Set conversion to 4-wire mode with 60Hz filtering */
+            configReg = MAX31865_CFG_MODE(1) | MAX31865_CFG_50HZ(0);
+
             if ((card->dipSwitch & swbit) == swbit)
             {
-                configReg = MAX31865_CFG_3WIRE_RTD(1);
+                configReg |= MAX31865_CFG_3WIRE_RTD(1);
 
                 System_printf("RTD Card %d configured for 3-WIRE mode\n");
                 System_flush();
             }
             else
             {
-                configReg = 0;
-
                 System_printf("RTD Card %d configured for 2/4-WIRE mode\n");
                 System_flush();
             }

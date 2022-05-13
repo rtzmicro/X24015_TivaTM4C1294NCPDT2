@@ -36,9 +36,9 @@
  *  params.highFaultThreshold    = 0xFFFF;
  *  params.configReg             = MAX31865_CFG_3WIRE_RTD(0);
  *  params.chipselect            = X24015_GPIO_PM0;
- *  params.chipselect_param1     = 0;
- *  params.chipselect_param2     = 0;
- *  params.chipselect_proc       = MAX31865_ChipSelect_Proc;
+ *  params.chipselect_proc       = NULL;
+ *  params.chipselect_param1     = NULL;
+ *  params.chipselect_param2     = NULL;
  *
  *  ad7799Handle = MAX31865_create(spiHandle, Board_CS, &ad7799Params);
  *  if (!handle) {
@@ -113,10 +113,10 @@
 /* MAX31865 Data Structures                                                   */
 /******************************************************************************/
 
-/* Define chip select callback function pointer. If this
- * member is NULL, then gpioCS is used to drive the chip
+/* Define chip select callback function pointer. If this member
+ * is NULL, then index in 'chipselect' is used to drive the chip
  * select. Otherwise, the callback function is called
- * and must handle controlling the chip select line.
+ * and must handle controlling the chip select line manually.
  */
 typedef void (*fptr_chipsel)(bool assert, void* param1, void* param2);
 
@@ -239,6 +239,8 @@ uint8_t MAX31865_readRTD_ohm(MAX31865_Handle handle, float* ohms);
 uint8_t MAX31865_readCelsius(MAX31865_Handle handle, float* celcius);
 
 uint8_t MAX31865_readKelvin(MAX31865_Handle handle, float* kelvin);
+
+uint8_t MAX31865_checkFault(MAX31865_Handle handle);
 
 uint8_t MAX31865_readFault(MAX31865_Handle handle);
 

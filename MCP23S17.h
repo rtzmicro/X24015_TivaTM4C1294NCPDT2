@@ -93,23 +93,36 @@
  * Driver Data Structures
  *****************************************************************************/
 
+/* Define chip select callback function pointer. If this member
+ * is NULL, then index in 'gpioCSIndex' is used to drive the chip
+ * select. Otherwise, the callback function is called
+ * and must handle controlling the chip select line manually.
+ */
+typedef void (*MCP23S17_ChipSelect)(bool assert, void* param1, void* param2);
+
 /* MCP23S17 Configuration array data element for initialization */
 typedef struct MCP23S17_InitData {
-    uint8_t             addr;           /* register address */
-    uint8_t             data;           /* config data byte */
+    uint8_t             addr;               /* register address */
+    uint8_t             data;               /* config data byte */
 } MCP23S17_InitData;
 
 /* MCP23S17 Parameters object points to init data */
 typedef struct MCP23S17_Params {
-    MCP23S17_InitData*  initData;       /* ptr to init data array  */
-    uint32_t            initDataCount;  /* size of init data array */
-    uint32_t            gpioCSIndex;    /* chip select in Board.h  */
+    MCP23S17_InitData*  initData;           /* ptr to init data array  */
+    uint32_t            initDataCount;      /* size of init data array */
+    uint32_t            gpioCSIndex;        /* chip select in Board.h  */
+    MCP23S17_ChipSelect chipselectProc;     /* chip select callback    */
+    void*               chipselectParam1;   /* callback parameter1     */
+    void*               chipselectParam2;   /* callback parameter2     */
 } MCP23S17_Params;
 
 /* MCP23S17 handle object */
 typedef struct MCP23S17_Object {
-    SPI_Handle      	spiHandle;      /* handle for SPI object  */
-    uint32_t    		gpioCSIndex;    /* chip select in Board.h */
+    SPI_Handle      	spiHandle;          /* handle for SPI object   */
+    uint32_t    		gpioCSIndex;        /* chip select in Board.h  */
+    MCP23S17_ChipSelect chipselectProc;     /* chip select callback    */
+    void*               chipselectParam1;   /* callback parameter1     */
+    void*               chipselectParam2;   /* callback parameter2     */
 #if (MCP23S17_THREAD_SAFE > 0)
     GateMutex_Struct    gate;
 #endif

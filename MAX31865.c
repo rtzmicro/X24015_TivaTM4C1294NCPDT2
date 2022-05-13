@@ -237,7 +237,7 @@ bool MAX31865_probe(MAX31865_Handle handle)
              * only look for the vbias bit to still being set.
              * If so, assume the MAX31865 chip is there and alive.
              */
-            if (regval != MAX31865_CFG_VBIAS(1))
+            if ((regval & MAX31865_CFG_VBIAS(1)) != MAX31865_CFG_VBIAS(1))
                 success = false;
         }
     }
@@ -381,35 +381,32 @@ uint8_t MAX31865_readADC(MAX31865_Handle handle, uint16_t* data)
     IArg key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
 #endif
 
+    /* Clear any fault prior to reading */
+    //MAX31865_clearFault(handle);
+
     /*
      * Step-1: Turn on vbias prior to read and allow settling time.
      */
 
     reg8 = handle->configReg | MAX31865_CFG_VBIAS(1);
-
     MAX31865_write(handle, MAX31865_REG_CONFIG | MAX31865_WRITE, &reg8, 1);
-
     Task_sleep(handle->charge_time_delay);
 
     /*
      * Step-2: Start a one-shot conversion with vbias enabled.
      */
 
-    reg8 = handle->configReg | MAX31865_CFG_1SHOT(1) | MAX31865_CFG_VBIAS(1);
-
+    reg8 |= MAX31865_CFG_1SHOT(1) | MAX31865_CFG_VBIAS(1);
     MAX31865_write(handle, MAX31865_REG_CONFIG | MAX31865_WRITE, &reg8, 1);
-
     Task_sleep(handle->conversion_time_delay);
 
     /*
      * Step-3: Read the RTD 16-bit word with D0 being the error flag bit. Note the
      *         actual ADC value is a 15-bit result and D0 is an error flag bit.
-     *         D1 is the LSB, so we shift the lower byte down a bit.
+     *         D1 is the LSB, so we shift the word down a bit.
      */
 
     MAX31865_read(handle, MAX31865_REG_RTD_MSB, &buf, 2);
-
-    //adc = (uint16_t)((buf[0] << 8) | (buf[1] >> 1));
 
     adc = (uint16_t)(((buf[0] << 8) | buf[1]) >> 1);
 
@@ -418,29 +415,16 @@ uint8_t MAX31865_readADC(MAX31865_Handle handle, uint16_t* data)
      */
 
     reg8 = handle->configReg;
-
     MAX31865_write(handle, MAX31865_REG_CONFIG | MAX31865_WRITE, &reg8, 1);
 
     /* Check for fault */
     if (buf[1] & 0x01)
     {
-        uint8_t fault;
-
-        fault = MAX31865_readFault(handle);
-
-        switch(fault)
-        {
-        case MAX31865_ERR_RTD_HIGH_THRESHOLD:
-        case MAX31865_ERR_RTD_LOW_THRESHOLD:
-            status = fault;
-            break;
-
-        default:
-            status = MAX31865_ERR_UNDEFINED;
-            break;
-        }
+        status = MAX31865_readFault(handle);
 
         MAX31865_clearFault(handle);
+
+        MAX31865_init(handle);
     }
 
 #if (MAX31865_THREAD_SAFE > 0)
@@ -481,6 +465,46 @@ float MAX31865_ADC_to_Celcius(MAX31865_Handle handle, uint16_t adc)
     return celcius;
 }
 
+
+/******************************************************************************
+ * Manual fault checking function
+ ******************************************************************************/
+
+uint8_t MAX31865_checkFault(MAX31865_Handle handle)
+{
+    uint8_t reg;
+    uint8_t fault;
+
+#if (MAX31865_THREAD_SAFE > 0)
+    IArg key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
+#endif
+
+    /* Turn on VBias for at least five time constants */
+    reg = MAX31865_CFG_VBIAS(1);
+    MAX31865_write(handle, MAX31865_REG_CONFIG | MAX31865_WRITE, &reg, 1);
+    Task_sleep(handle->charge_time_delay);
+
+    /* Turn on VBias for at least five time constants */
+    reg = 0x88;     // 100X100Xb
+    MAX31865_write(handle, MAX31865_REG_CONFIG | MAX31865_WRITE, &reg, 1);
+    Task_sleep(handle->charge_time_delay);
+
+    MAX31865_read(handle, MAX31865_REG_FAULT_STATUS, &fault, 1);
+
+    /* Set ADC to "normally off" mode */
+    reg = 0x8C;     // 100X110Xb
+    MAX31865_write(handle, MAX31865_REG_CONFIG | MAX31865_WRITE, &reg, 1);
+    Task_sleep(handle->charge_time_delay);
+
+    MAX31865_read(handle, MAX31865_REG_FAULT_STATUS, &fault, 1);
+
+#if (MAX31865_THREAD_SAFE > 0)
+    GateMutex_leave(GateMutex_handle(&(handle->gate)), key);
+#endif
+
+    return fault;
+}
+
 /******************************************************************************
  *
  ******************************************************************************/
@@ -512,7 +536,21 @@ void MAX31865_clearFault(MAX31865_Handle handle)
     IArg key = GateMutex_enter(GateMutex_handle(&(handle->gate)));
 #endif
 
-    uint8_t config = handle->configReg | MAX31865_CFG_FAULT_CLR(1);
+    /* Write a 1 to D1 while writing 0 to bits D5, D3, and D2 to
+     * return all fault status bits (D[7:2]) in the Fault Status Register
+     * to 0. Note that bit D2 in the Fault Register, and subsequently
+     * bit D0 in the RTD LSB register may be set again immediately after
+     * resetting if an over/undervoltage fault persists. The fault status
+     * clear bit D1, self-clears to 0.
+     */
+
+    uint8_t config = handle->configReg;
+
+    /* Clear bits D5, D3 and D2 */
+    config &= ~(0x2C);  //~(MAX31865_CFG_FAULT_CYCLE(3) | MAX31865_CFG_1SHOT(1));
+
+    /* Set D1 to clear the fault */
+    config |= MAX31865_CFG_FAULT_CLR(1);
 
     MAX31865_write(handle, MAX31865_REG_CONFIG, &config, 1);
 
