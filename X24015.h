@@ -81,7 +81,6 @@ typedef struct _ADC_CARD {
 /* This defines the max number of RTD cards per rack, the number of
  * converters per card, and the number of channels in the system.
  */
-#define RTD_NUM_CARDS               1
 #define RTD_MAX_CARDS               4
 #define RTD_CHANNELS_PER_CARD       4
 

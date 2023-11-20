@@ -657,7 +657,7 @@ uint32_t RTD_AllocCards(void)
     size_t i, n;
     uint32_t channels = 0;
 
-    for (n=0; n < RTD_NUM_CARDS; n++)
+    for (n=0; n < RTD_MAX_CARDS; n++)
     {
         RTD_CARD *card = &g_rtdCard[n];
 
@@ -723,12 +723,12 @@ uint32_t RTD_AllocCards(void)
             {
                 configReg |= MAX31865_CFG_3WIRE_RTD(1);
 
-                System_printf("RTD Card %d configured for 3-WIRE mode\n");
+                System_printf("RTD-%d Ch-%d configured for 3-WIRE mode\n", n, i);
                 System_flush();
             }
             else
             {
-                System_printf("RTD Card %d configured for 2/4-WIRE mode\n");
+                System_printf("RTD-%d Ch-%d configured for 2/4-WIRE mode\n", n, i);
                 System_flush();
             }
 
