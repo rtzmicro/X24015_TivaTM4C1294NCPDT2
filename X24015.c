@@ -754,7 +754,7 @@ uint32_t RTD_AllocCards(void)
             {
                 SetLastError(XSYSERR_RTD_INIT);
 
-                System_printf("MAX31865_init() failed slot=%u chan=%u!\n", n, i);
+                System_printf("MAX31865_init() failed index=%u chan=%u!\n", n, i);
                 System_flush();
             }
 
