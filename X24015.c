@@ -124,13 +124,13 @@ static ADC_CARD g_adcCard[ADC_MAX_CARDS] = {
  */
 static RTD_CARD g_rtdCard[RTD_MAX_CARDS] = {
     /* RTD Card #1 */
-    {{ NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }, NULL, 0, X24015_GPIO_PM0 },
+    { NULL, 0, X24015_GPIO_PM0, { NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }},
     /* RTD Card #2 */
-    {{ NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }, NULL, 0, X24015_GPIO_PM1 },
+    { NULL, 0, X24015_GPIO_PM1, { NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }},
     /* RTD Card #3 */
-    {{ NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }, NULL, 0, X24015_GPIO_PM2 },
+    { NULL, 0, X24015_GPIO_PM2, { NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }},
     /* RTD Card #4 */
-    {{ NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }, NULL, 0, X24015_GPIO_PM3 },
+    { NULL, 0, X24015_GPIO_PM3, { NULL, 0x01, NULL, 0x02, NULL, 0x04, NULL, 0x08 }},
 };
 
 //*****************************************************************************
@@ -141,7 +141,7 @@ static bool Init_Peripherals(void);
 static bool Init_Devices(void);
 
 static uint32_t RTD_AllocCards(void);
-static uint32_t RTD_ReadChannel(uint32_t channel);
+static uint32_t RTD_ReadAllCards(void);
 static void MAX31865_ChipSelect_Proc(bool assert, void* param1, void* param2);
 
 static uint32_t ADC_AllocCards(void);
@@ -653,14 +653,13 @@ uint32_t ADC_ReadChannel(uint32_t channel)
 
 uint32_t RTD_AllocCards(void)
 {
-    uint8_t configReg;
     size_t i, n;
+    uint8_t configReg;
     uint32_t channels = 0;
-    bool success;
 
     for (n=0; n < RTD_MAX_CARDS; n++)
     {
-        RTD_CARD *card = &g_rtdCard[n];
+        RTD_CARD* card = &g_rtdCard[n];
 
         /*
          * Create the I/O expander object for this card
@@ -676,13 +675,13 @@ uint32_t RTD_AllocCards(void)
         /* Create the I/O expander object on SPI-0 for this card */
         card->handleIOX = MCP23S17_create(g_sys.spi0, &paramsIOX);
 
+        /* Check to make sure the card object created and that
+         * it was initialized properly. If not, then there is
+         * no RTD card found in this slot and we continue to the
+         * next slot searching for an RTD card.
+         */
         if (card->handleIOX == NULL)
             continue;
-
-        Assert_isTrue((card->handleIOX != NULL), NULL);
-
-        /* Attempt to see if I/O expander was found on an RTD card */
-        success = MCP23S17_probe(card->handleIOX, paramsIOX.initData, paramsIOX.initDataCount);
 
         /* Read the RTD card DIP switch settings */
         uint8_t dipsw = 0;
@@ -691,19 +690,12 @@ uint32_t RTD_AllocCards(void)
         /* Upper 4-bits are dip switch, lower 4-bits are DRDY */
         card->dipSwitch = dipsw >> 4;
 
-        /* If DIP switch 1 is set, then configure for 3-wire mode,
-         * otherwise 2 or 4 wire is assumed.
-         */
-#if 0
-        if (card->dipSwitch & 0x01)
-            configReg = MAX31865_CFG_3WIRE_RTD(1);
-        else
-            configReg = 0;
-#endif
-
         /*
          * Create and initialize four RTD channel objects for this card
          */
+
+        System_printf("RTD Card Found - slot=%u\n", n);
+        System_flush();
 
         uint8_t swbit = 1;
 
@@ -749,14 +741,20 @@ uint32_t RTD_AllocCards(void)
             Assert_isTrue((channel->handleRTD != NULL), NULL);
 
             /* Attempt to initialize the card */
-            if (MAX31865_init(channel->handleRTD))
+            if (!MAX31865_init(channel->handleRTD))
             {
-                channels += 1;
+                SetLastError(XSYSERR_RTD_INIT);
+
+                System_printf("MAX31865_init() failed slot=%u chan=%u!\n", n, i);
+                System_flush();
             }
 
             /* Shift bit mask to the next DIP switch position we test next */
             swbit <<= 1;
         }
+
+        /* Increment the total number of RTD channels found */
+        channels += RTD_CHANNELS_PER_CARD;
     }
 
     return channels;
@@ -791,45 +789,50 @@ void MAX31865_ChipSelect_Proc(bool assert, void* param1, void* param2)
 //
 //*****************************************************************************
 
-uint32_t RTD_ReadChannel(uint32_t channel)
+uint32_t RTD_ReadAllCards(void)
 {
     uint8_t status;
     uint16_t adc;
-    uint32_t rc = RTD_ERROR;
     float tempC;
 
-    size_t card_index = channel / RTD_CHANNELS_PER_CARD;
+    size_t slot;
+    size_t channel;
+    size_t count = 0;
 
-    if (card_index >= RTD_CHANNELS_PER_CARD)
-        return rc;
-
-    RTD_CARD *card = &g_rtdCard[card_index];
-
-    MAX31865_Handle handle = card->channels[channel % 4].handleRTD;
-
-    if (handle)
+    for (slot=0; slot < RTD_MAX_CARDS; slot++)
     {
-        /* Read the raw ADC value from the RTD */
-        status = MAX31865_readADC(handle, &adc);
+        RTD_CARD *card = &g_rtdCard[slot];
 
-        if (status == MAX31865_ERR_SUCCESS)
+        for (channel=0; channel < RTD_CHANNELS_PER_CARD; channel++)
         {
-            /* Convert ADC to Celcius and store in global channel data table */
-            tempC =  MAX31865_ADC_to_Celcius(handle, adc);
+            MAX31865_Handle handle = card->channels[channel].handleRTD;
 
-            g_sys.rtdADC[channel] = adc;
-            g_sys.rtdTempC[channel] = tempC;
+            if (!handle)
+                continue;
 
-            rc = 0;
-        }
-        else
-        {
-            g_sys.rtdADC[channel] = 0xFFFFFFFF;
-            g_sys.rtdTempC[channel] = 0.0f;
+            /* Read the raw ADC value from the RTD */
+            status = MAX31865_readADC(handle, &adc);
+
+            if (status == MAX31865_ERR_SUCCESS)
+            {
+                /* Convert ADC to Celcius and store in global channel data table */
+                tempC =  MAX31865_ADC_to_Celcius(handle, adc);
+
+                g_sys.rtdADC[count] = adc;
+                g_sys.rtdTempC[count] = tempC;
+            }
+            else
+            {
+                g_sys.rtdADC[count] = 0xFFFFFFFF;
+                g_sys.rtdTempC[count] = 0.0f;
+            }
+
+
+            ++count;
         }
     }
 
-    return rc;
+    return count;
 }
 
 //*****************************************************************************
@@ -860,6 +863,9 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
 
     while (true)
     {
+        /* Toggle the activity LED to show we're alive */
+        GPIO_toggle(Board_LED_ACT);
+
         /* Turn on ALM LED if system error detected */
         GPIO_write(Board_LED_ALM, (GetLastError() != XSYSERR_SUCCESS) ? PIN_HIGH : PIN_LOW);
 
@@ -876,27 +882,17 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
             {
                 //System_printf("UV-C[%d] %f\n", i, g_sys.uvcPower[i]);
                 //System_flush();
-
-                GPIO_toggle(Board_LED_ACT);
             }
         }
 
-        /* If any RTD channels were found, then read the ADC for the
-         * channel and store the results in global data buffer.
-         */
+        /* Read all RTD cards and channels found into memory */
+
+        RTD_ReadAllCards();
 
         for (i=0; i < g_sys.rtdNumChannels; i++)
         {
-            /* Read the RTD ADC value and check for any error. If no value convert
-             * the ADC value to Celcius temperature value in the data table.
-             */
-            if (RTD_ReadChannel(i) != RTD_ERROR)
-            {
-                System_printf("Temp[%d] %f\n", i, CELCIUS_TO_FAHRENHEIT(g_sys.rtdTempC[i]));
-                System_flush();
-
-                GPIO_toggle(Board_LED_ACT);
-            }
+            System_printf("Temp[%d] %f\n", i, CELCIUS_TO_FAHRENHEIT(g_sys.rtdTempC[i]));
+            System_flush();
         }
 
         Task_sleep(100);
