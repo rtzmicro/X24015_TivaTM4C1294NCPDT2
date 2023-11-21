@@ -178,7 +178,13 @@ MCP23S17_Handle MCP23S17_create(
         initData  = params->initData;
         initCount = params->initDataCount;
 
-        MCP23S17_init(handle, initData, initCount);
+        /* Attempt to initialize the part with configuration data */
+        if (!MCP23S17_init(handle, initData, initCount))
+        {
+            /* Initialization failed! */
+            MCP23S17_destruct(handle);
+            handle = NULL;
+        }
     }
 
     return handle;
@@ -205,6 +211,7 @@ bool MCP23S17_init(
         uint32_t initDataCount)
 {
     int i;
+    uint8_t data;
     bool success = false;
 
     for (i=0; i < initDataCount; i++)
@@ -214,6 +221,19 @@ bool MCP23S17_init(
 
         if (!success)
             break;
+
+        /* Attempt to read the data byte back and check it against what
+         * we wrote to the register to confirm that the part is actually there.
+         * there. If not, then no need to continue writing the init data
+         * and we return failure status.
+         */
+        success = MCP23S17_read(handle, initData->addr, &data);
+
+        if (!success || (data != initData->data))
+        {
+            success = false;
+            break;
+        }
 
         /* Increment to next element in register config data table */
         ++initData;

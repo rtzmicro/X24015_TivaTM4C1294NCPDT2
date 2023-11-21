@@ -675,6 +675,9 @@ uint32_t RTD_AllocCards(void)
         /* Create the I/O expander object on SPI-0 for this card */
         card->handleIOX = MCP23S17_create(g_sys.spi0, &paramsIOX);
 
+        if (card->handleIOX == NULL)
+            continue;
+
         Assert_isTrue((card->handleIOX != NULL), NULL);
 
         /* Read the RTD card DIP switch settings */
@@ -722,14 +725,6 @@ uint32_t RTD_AllocCards(void)
             if ((card->dipSwitch & swbit) == swbit)
             {
                 configReg |= MAX31865_CFG_3WIRE_RTD(1);
-
-                System_printf("RTD-%d Ch-%d configured for 3-WIRE mode\n", n, i);
-                System_flush();
-            }
-            else
-            {
-                System_printf("RTD-%d Ch-%d configured for 2/4-WIRE mode\n", n, i);
-                System_flush();
             }
 
             params.charge_time_delay     = MAX31865_CHARGE_TIME;
