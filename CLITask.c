@@ -557,6 +557,8 @@ FRESULT _dirlist(char* path)
         }
     }
 
+    (void)tot_sect;
+
     return res;
 }
 

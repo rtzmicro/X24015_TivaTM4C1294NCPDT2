@@ -477,6 +477,8 @@ int xmodem_receive(UART_Handle handle, FIL* fp)
     System_flush();
 #endif
 
+    (void)res;
+
     return status;
 }
 
@@ -675,6 +677,8 @@ int xmodem_send(UART_Handle handle, FIL* fp)
             }
         }
     }
+
+    (void)res;
 
     return status;
 }
