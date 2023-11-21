@@ -657,6 +657,15 @@ uint32_t RTD_AllocCards(void)
     uint8_t configReg;
     uint32_t channels = 0;
 
+    g_sys.rtdNumChannels = 0;
+
+    for (i=0; i < 16; i++)
+    {
+        g_sys.rtdTempC[i] = 0.0f;
+        g_sys.rtdADC[i] = 0;
+    }
+
+
     for (n=0; n < RTD_MAX_CARDS; n++)
     {
         RTD_CARD* card = &g_rtdCard[n];
@@ -677,8 +686,8 @@ uint32_t RTD_AllocCards(void)
 
         /* Check to make sure the card object created and that
          * it was initialized properly. If not, then there is
-         * no RTD card found in this slot and we continue to the
-         * next slot searching for an RTD card.
+         * no RTD card found for this chip select and we continue
+         * to the next chip select searching for an RTD card.
          */
         if (card->handleIOX == NULL)
             continue;
@@ -802,6 +811,13 @@ uint32_t RTD_ReadAllCards(void)
     for (slot=0; slot < RTD_MAX_CARDS; slot++)
     {
         RTD_CARD *card = &g_rtdCard[slot];
+
+        /* If the RTD card was not found for the chip select specified
+         * in the config table, then skip over this config and continue
+         * looking for a RTD card at the next chip select configuration.
+         */
+        if (!card->handleIOX)
+            continue;
 
         for (channel=0; channel < RTD_CHANNELS_PER_CARD; channel++)
         {
