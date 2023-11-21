@@ -164,6 +164,11 @@ bool MCP23S17_init(
         MCP23S17_InitData* initData,
         uint32_t initDataCount);
 
+bool MCP23S17_probe(
+        MCP23S17_Handle handle,
+        MCP23S17_InitData* initData,
+        uint32_t initDataCount);
+
 bool MCP23S17_write(
         MCP23S17_Handle handle,
         uint8_t ucRegAddr,

@@ -656,6 +656,7 @@ uint32_t RTD_AllocCards(void)
     uint8_t configReg;
     size_t i, n;
     uint32_t channels = 0;
+    bool success;
 
     for (n=0; n < RTD_MAX_CARDS; n++)
     {
@@ -679,6 +680,9 @@ uint32_t RTD_AllocCards(void)
             continue;
 
         Assert_isTrue((card->handleIOX != NULL), NULL);
+
+        /* Attempt to see if I/O expander was found on an RTD card */
+        success = MCP23S17_probe(card->handleIOX, paramsIOX.initData, paramsIOX.initDataCount);
 
         /* Read the RTD card DIP switch settings */
         uint8_t dipsw = 0;

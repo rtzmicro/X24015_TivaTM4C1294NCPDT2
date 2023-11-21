@@ -128,7 +128,7 @@ MCP23S17_Handle MCP23S17_construct(
     obj->chipselectProc   = params->chipselectProc;
     obj->chipselectParam1 = params->chipselectParam1;
     obj->chipselectParam2 = params->chipselectParam2;
-    /* Initialize object data members */
+
 #if (MCP23S17_THREAD_SAFE > 0)
     GateMutex_construct(&(obj->gate), NULL);
 #endif
@@ -211,7 +211,6 @@ bool MCP23S17_init(
         uint32_t initDataCount)
 {
     int i;
-    uint8_t data;
     bool success = false;
 
     for (i=0; i < initDataCount; i++)
@@ -222,17 +221,44 @@ bool MCP23S17_init(
         if (!success)
             break;
 
+        /* Increment to next element in register config data table */
+        ++initData;
+    }
+
+    return success;
+}
+
+/*****************************************************************************
+ * Attempt to detect the prescence of I/O expander. Note the I/O expander
+ * must be initialized before calling this function.
+ *****************************************************************************/
+
+bool MCP23S17_probe(
+        MCP23S17_Handle handle,
+        MCP23S17_InitData* initData,
+        uint32_t initDataCount)
+{
+    int i;
+    uint8_t data;
+    bool success = false;
+
+    for (i=0; i < initDataCount; i++)
+    {
         /* Attempt to read the data byte back and check it against what
          * we wrote to the register to confirm that the part is actually there.
          * there. If not, then no need to continue writing the init data
          * and we return failure status.
          */
+
         success = MCP23S17_read(handle, initData->addr, &data);
 
-        if (!success || (data != initData->data))
+        if (success)
         {
-            success = false;
-            break;
+            if (data != initData->data)
+            {
+                success = false;
+                break;
+            }
         }
 
         /* Increment to next element in register config data table */
