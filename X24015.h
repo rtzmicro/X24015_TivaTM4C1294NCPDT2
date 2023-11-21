@@ -97,10 +97,10 @@ typedef struct _RTD_CHANNEL {
 } RTD_CHANNEL;
 
 typedef struct _RTD_CARD {
-    RTD_CHANNEL     channels[RTD_CHANNELS_PER_CARD];
     MCP23S17_Handle handleIOX;      /* Handle of cards I/O expander */
     uint8_t         dipSwitch;      /* config DIP switch on card    */
     uint32_t        chipselIOX;     /* chip select for I/O expander */
+    RTD_CHANNEL     channels[RTD_CHANNELS_PER_CARD];
 } RTD_CARD;
 
 //*****************************************************************************
@@ -141,7 +141,9 @@ typedef struct _SYSDATA
 
 typedef enum XSYSERR {
     XSYSERR_SUCCESS=0,              /* no system errors detected */
+    XSYSERR_ADC_INIT,               /* ADC initialization failed */
     XSYSERR_ADC_READ,               /* an ADC sensor read failed */
+    XSYSERR_RTD_INIT,               /* RTD initialization failed */
     XSYSERR_RTD_READ,               /* a RTD sensor read failed  */
     XSYSERR_GUID_SERMAC,            /* error reading MAC address */
     /* max error count */

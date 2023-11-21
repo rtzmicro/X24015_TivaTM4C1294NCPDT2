@@ -225,6 +225,9 @@ bool MCP23S17_init(
         ++initData;
     }
 
+    /* Attempt to read back the I/O expander config to ensure the chip is there */
+    success = MCP23S17_probe(handle, initData, initDataCount);
+
     return success;
 }
 
@@ -252,13 +255,13 @@ bool MCP23S17_probe(
 
         success = MCP23S17_read(handle, initData->addr, &data);
 
-        if (success)
+        if (!success)
+            break;
+
+        if (data != initData->data)
         {
-            if (data != initData->data)
-            {
-                success = false;
-                break;
-            }
+            success = false;
+            break;
         }
 
         /* Increment to next element in register config data table */
