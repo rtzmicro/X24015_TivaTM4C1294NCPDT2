@@ -191,7 +191,7 @@ int main(void)
     /* Create task with priority 15 */
     Error_init(&eb);
     Task_Params_init(&taskParams);
-    taskParams.stackSize = 2048;
+    taskParams.stackSize = 4096; // 2048;
     taskParams.priority  = 15;
     Task_create((Task_FuncPtr)MainTaskFxn, &taskParams, &eb);
 
