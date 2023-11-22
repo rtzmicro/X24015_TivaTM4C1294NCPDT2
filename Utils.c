@@ -355,7 +355,6 @@ int ConfigParamsWrite(SYSCONFIG* sp)
 //
 // Returns:  0 = Sucess
 //          -1 = Error reading flash
-//
 //*****************************************************************************
 
 int ConfigParamsRead(SYSCONFIG* sp)
@@ -418,67 +417,115 @@ int ConfigParamsRead(SYSCONFIG* sp)
 // Helper Functions
 //*****************************************************************************
 
-#if 1
-int GetHexStr(char* textbuf, uint8_t* databuf, int datalen)
+int GetMACAddrStr(char* buf, uint8_t* mac)
 {
-    char *p = textbuf;
-    uint8_t *d;
-    uint32_t i;
-    int32_t l;
+    int len;
 
-    const uint32_t wordSize = 4;
+    len = sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X",
+                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
-    /* Null output text buffer initially */
-    *textbuf = 0;
-
-    /* Make sure buffer length is not zero */
-    if (!datalen)
-        return 0;
-
-    /* Read data bytes in reverse order so we print most significant byte first */
-    d = databuf + (datalen-1);
-
-    for (i=0; i < datalen; i++)
-    {
-        l = sprintf(p, "%02X", *d--);
-        p += l;
-
-        if (((i % wordSize) == (wordSize-1)) && (i != (datalen-1)))
-        {
-            l = sprintf(p, "-");
-            p += l;
-        }
-    }
-
-    return strlen(textbuf);
+    return len;
 }
-#else
-int GetHexStr(char* textbuf, uint8_t* databuf, int datalen)
+
+int GetSerialNumStr(char* buf, uint8_t* sn)
 {
-    char fmt[8];
-    uint32_t i;
-    int32_t l;
+    int len;
 
-    const uint32_t wordSize = 4;
+    len = sprintf(buf, "%02X%02X%02X%02X-%02X%02X%02X%02X-%02X%02X%02X%02X-%02X%02X%02X%02X",
+        sn[0], sn[1], sn[2], sn[3],
+        sn[4], sn[5], sn[6], sn[7],
+        sn[8], sn[9], sn[10], sn[11],
+        sn[12], sn[13], sn[14], sn[15]);
 
-    *textbuf = 0;
-    strcpy(fmt, "%02X");
+    return len;
+}
 
-    for (i=0; i < datalen; i++)
-    {
-        l = sprintf(textbuf, fmt, *databuf++);
-        textbuf += l;
+//*****************************************************************************
+// This enables the DIVSCLK output pin on PQ4 and generates a clock signal
+// from the main cpu clock divided by 'div' parameter. A value of 100 gives
+// a clock of 1.2 Mhz.
+//*****************************************************************************
 
-        if (((i % wordSize) == (wordSize-1)) && (i != (datalen-1)))
-        {
-            l = sprintf(textbuf, "-");
-            textbuf += l;
-        }
-    }
+#if (DIV_CLOCK_ENABLED > 0)
+void EnableClockDivOutput(uint32_t div)
+{
+    /* Enable pin PQ4 for DIVSCLK0 DIVSCLK */
+    GPIOPinConfigure(GPIO_PQ4_DIVSCLK);
 
-    return strlen(textbuf);
+    /* Configure the output pin for the clock output */
+    GPIODirModeSet(GPIO_PORTQ_BASE, GPIO_PIN_4, GPIO_DIR_MODE_HW);
+    GPIOPadConfigSet(GPIO_PORTQ_BASE, GPIO_PIN_4, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD);
+
+    /* Enable the clock output */
+
+    if (!div)
+        SysCtlClockOutConfig(SYSCTL_CLKOUT_DIS | SYSCTL_CLKOUT_SYSCLK, div);
+    else
+        SysCtlClockOutConfig(SYSCTL_CLKOUT_EN | SYSCTL_CLKOUT_SYSCLK, div);
 }
 #endif
+
+//*****************************************************************************
+// This function reads the unique 128-serial number and 48-bit MAC address
+// via I2C from the AT24MAC402 serial EPROM.
+//*****************************************************************************
+
+int ReadGUIDS(I2C_Handle handle, uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6])
+{
+    bool            ret;
+    uint8_t         txByte;
+    I2C_Transaction i2cTransaction;
+
+    /* default is all FF's  in case read fails*/
+    memset(ui8SerialNumber, 0xFF, 16);
+    memset(ui8MAC, 0xFF, 6);
+
+    /* Note the Upper bit of the word address must be set
+     * in order to read the serial number. Thus 80H would
+     * set the starting address to zero prior to reading
+     * this sixteen bytes of serial number data.
+     */
+
+    txByte = 0x80;
+
+    i2cTransaction.slaveAddress = AT24MAC_EPROM_EXT_ADDR;
+    i2cTransaction.writeBuf     = &txByte;
+    i2cTransaction.writeCount   = 1;
+    i2cTransaction.readBuf      = ui8SerialNumber;
+    i2cTransaction.readCount    = 16;
+
+    ret = I2C_transfer(handle, &i2cTransaction);
+
+    if (!ret)
+    {
+        System_printf("Unsuccessful I2C transfer\n");
+        System_flush();
+    }
+
+    /* Now read the 6-byte 48-bit MAC at address 0x9A. The EUI-48 address
+     * contains six or eight bytes. The first three bytes of the  UI read-only
+     * address field are called the Organizationally Unique Identifier (OUI)
+     * and the IEEE Registration Authority has assigned FCC23Dh as the Atmel OUI.
+     */
+
+    txByte = 0x9A;
+
+    i2cTransaction.slaveAddress = AT24MAC_EPROM_EXT_ADDR;
+    i2cTransaction.writeBuf     = &txByte;
+    i2cTransaction.writeCount   = 1;
+    i2cTransaction.readBuf      = ui8MAC;
+    i2cTransaction.readCount    = 6;
+
+    ret = I2C_transfer(handle, &i2cTransaction);
+
+    if (!ret)
+    {
+        System_printf("Unsuccessful I2C transfer\n");
+        System_flush();
+    }
+
+    return ret;
+}
 
 //*****************************************************************************
 //

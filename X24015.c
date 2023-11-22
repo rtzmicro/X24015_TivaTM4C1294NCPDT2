@@ -148,12 +148,6 @@ static uint32_t ADC_AllocCards(void);
 static uint32_t ADC_ReadChannel(uint32_t channel);
 static float ADC_to_UVPower(uint32_t adc);
 
-static int ReadGUIDS(I2C_Handle handle, uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6]);
-
-#if (DIV_CLOCK_ENABLED > 0)
-static void EnableClockDivOutput(uint32_t div);
-#endif
-
 //*****************************************************************************
 // Main Entry Point
 //*****************************************************************************
@@ -216,93 +210,6 @@ uint32_t GetLastError(void)
 void SetLastError(uint32_t error)
 {
     g_sys.lastError = error;
-}
-
-//*****************************************************************************
-// This enables the DIVSCLK output pin on PQ4 and generates a clock signal
-// from the main cpu clock divided by 'div' parameter. A value of 100 gives
-// a clock of 1.2 Mhz.
-//*****************************************************************************
-
-#if (DIV_CLOCK_ENABLED > 0)
-void EnableClockDivOutput(uint32_t div)
-{
-    /* Enable pin PQ4 for DIVSCLK0 DIVSCLK */
-    GPIOPinConfigure(GPIO_PQ4_DIVSCLK);
-
-    /* Configure the output pin for the clock output */
-    GPIODirModeSet(GPIO_PORTQ_BASE, GPIO_PIN_4, GPIO_DIR_MODE_HW);
-    GPIOPadConfigSet(GPIO_PORTQ_BASE, GPIO_PIN_4, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD);
-
-    /* Enable the clock output */
-
-    if (!div)
-        SysCtlClockOutConfig(SYSCTL_CLKOUT_DIS | SYSCTL_CLKOUT_SYSCLK, div);
-    else
-        SysCtlClockOutConfig(SYSCTL_CLKOUT_EN | SYSCTL_CLKOUT_SYSCLK, div);
-}
-#endif
-
-//*****************************************************************************
-// This function reads the unique 128-serial number and 48-bit MAC address
-// via I2C from the AT24MAC402 serial EPROM.
-//*****************************************************************************
-
-int ReadGUIDS(I2C_Handle handle, uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6])
-{
-    bool            ret;
-    uint8_t         txByte;
-    I2C_Transaction i2cTransaction;
-
-    /* default is all FF's  in case read fails*/
-    memset(ui8SerialNumber, 0xFF, 16);
-    memset(ui8MAC, 0xFF, 6);
-
-    /* Note the Upper bit of the word address must be set
-     * in order to read the serial number. Thus 80H would
-     * set the starting address to zero prior to reading
-     * this sixteen bytes of serial number data.
-     */
-
-    txByte = 0x80;
-
-    i2cTransaction.slaveAddress = AT24MAC_EPROM_EXT_ADDR;
-    i2cTransaction.writeBuf     = &txByte;
-    i2cTransaction.writeCount   = 1;
-    i2cTransaction.readBuf      = ui8SerialNumber;
-    i2cTransaction.readCount    = 16;
-
-    ret = I2C_transfer(handle, &i2cTransaction);
-
-    if (!ret)
-    {
-        System_printf("Unsuccessful I2C transfer\n");
-        System_flush();
-    }
-
-    /* Now read the 6-byte 48-bit MAC at address 0x9A. The EUI-48 address
-     * contains six or eight bytes. The first three bytes of the  UI read-only
-     * address field are called the Organizationally Unique Identifier (OUI)
-     * and the IEEE Registration Authority has assigned FCC23Dh as the Atmel OUI.
-     */
-
-    txByte = 0x9A;
-
-    i2cTransaction.slaveAddress = AT24MAC_EPROM_EXT_ADDR;
-    i2cTransaction.writeBuf     = &txByte;
-    i2cTransaction.writeCount   = 1;
-    i2cTransaction.readBuf      = ui8MAC;
-    i2cTransaction.readCount    = 6;
-
-    ret = I2C_transfer(handle, &i2cTransaction);
-
-    if (!ret)
-    {
-        System_printf("Unsuccessful I2C transfer\n");
-        System_flush();
-    }
-
-    return ret;
 }
 
 //*****************************************************************************
@@ -847,18 +754,25 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
 
     /* Enable the LED's during startup up */
     GPIO_write(Board_LED_ACT, Board_LED_ON);
-    GPIO_write(Board_LED_ALM, Board_LED_OFF);
+    GPIO_write(Board_LED_ALM, Board_LED_ON);
 
-    /* Power up any slot cards listening */
+    /* Raise the PWRUP_BUS line to indicate to all slots
+     * that any additional hardware power-up should begin.
+     */
     Task_sleep(100);
     GPIO_write(Board_PWRUP_BUS_OUT, PIN_HIGH);
     Task_sleep(100);
 
-    /* Pulse reset line to any cards listening */
+    /* Pulse the RESET_BUS signal to all slots to indicate it's
+     * time to do a hardware reset.
+     */
     GPIO_write(Board_RESET_BUS_OUT, PIN_LOW);
     Task_sleep(10);
     GPIO_write(Board_RESET_BUS_OUT, PIN_HIGH);
     Task_sleep(100);
+
+    /* Set the alarm LED off after reset */
+    GPIO_write(Board_LED_ALM, Board_LED_OFF);
 
     /* Read any system configuration parameters from EPROM. If config
      * hasn't been initialized, then initialize it with defaults.
@@ -892,7 +806,7 @@ Void MainTaskFxn(UArg arg0, UArg arg1)
 
         for (i=0; i < g_sys.adcNumChannels; i++)
         {
-            /* Read the ADC value and check for any error. If no value convert
+            /* Read the ADC value and check for any error. If no error convert
              * the ADC value to UV level in mW/cm2 and store in the data table.
              */
             if (ADC_ReadChannel(i) != ADC_ERROR)

@@ -115,6 +115,7 @@ MK_CMD(ren);
 MK_CMD(del);
 MK_CMD(copy);
 MK_CMD(xmdm);
+MK_CMD(stat);
 
 /* The dispatch table */
 #define CMD(func, help) {#func, cmd_ ## func, help}
@@ -136,6 +137,7 @@ static cmd_t dispatch[] = {
     CMD(del,    "Delete a file or directory"),
     CMD(copy,   "Copy a file to a new file"),
     CMD(xmdm,   "XMODEM send/receive file"),
+    CMD(stat,   "Display system status"),
 };
 
 #define NUM_CMDS    (sizeof(dispatch)/sizeof(cmd_t))
@@ -641,10 +643,7 @@ void cmd_cls(int argc, char *argv[])
 void cmd_sn(int argc, char *argv[])
 {
     char serialnum[64];
-
-    /*  Format the 64 bit GUID as a string */
-    GetHexStr(serialnum, g_sys.ui8SerialNumber, 16);
-
+    GetSerialNumStr(serialnum, g_sys.ui8SerialNumber);
     CLI_printf("Serial#: %s\n", serialnum);
 }
 
@@ -656,11 +655,7 @@ void cmd_ip(int argc, char *argv[])
 void cmd_mac(int argc, char *argv[])
 {
     char mac[32];
-
-    sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X",
-            g_sys.ui8MAC[0], g_sys.ui8MAC[1], g_sys.ui8MAC[2],
-            g_sys.ui8MAC[3], g_sys.ui8MAC[4], g_sys.ui8MAC[5]);
-
+    GetMACAddrStr(mac, g_sys.ui8MAC);
     CLI_printf("MAC address: %s\n", mac);
 }
 
@@ -1026,6 +1021,15 @@ void xmodem_get_error(int err, char* buf, int bufsize)
         snprintf(buf, bufsize, "error=%d", err);
         break;
     }
+}
+
+void cmd_stat(int argc, char *argv[])
+{
+    CLI_printf("SYSTEM STATUS\n");
+    CLI_printf("ADC Channels: %d\n", g_sys.adcNumChannels);
+    CLI_printf("RTD Channels: %d\n", g_sys.rtdNumChannels);
+    CLI_printf("Last System Error: %d\n", GetLastError());
+    CLI_putc('\n');
 }
 
 

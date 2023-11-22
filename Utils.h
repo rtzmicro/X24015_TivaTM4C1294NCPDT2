@@ -31,6 +31,13 @@ void ConfigInitDefaults(SYSCONFIG* p);
 int ConfigParamsRead(SYSCONFIG* sp);
 int ConfigParamsWrite(SYSCONFIG* sp);
 
-int GetHexStr(char* textbuf, uint8_t* databuf, int datalen);
+int GetMACAddrStr(char* buf, uint8_t* mac);
+int GetSerialNumStr(char* buf, uint8_t* sn);
+
+int ReadGUIDS(I2C_Handle handle, uint8_t ui8SerialNumber[16], uint8_t ui8MAC[6]);
+
+#if (DIV_CLOCK_ENABLED > 0)
+void EnableClockDivOutput(uint32_t div);
+#endif
 
 #endif /* __UTILS_H */
