@@ -437,20 +437,6 @@ bool Init_Peripherals(void)
 
 bool Init_Devices(void)
 {
-    /* Enable the LED's during startup up */
-    GPIO_write(Board_LED_ACT, Board_LED_ON);
-    GPIO_write(Board_LED_ALM, Board_LED_OFF);
-
-    /* Power up any slot cards listening */
-    GPIO_write(Board_PWRUP_BUS_OUT, PIN_HIGH);
-    Task_sleep(100);
-
-    /* Reset any slot cards listening */
-    GPIO_write(Board_RESET_BUS_OUT, PIN_LOW);
-    Task_sleep(100);
-    GPIO_write(Board_RESET_BUS_OUT, PIN_HIGH);
-    Task_sleep(100);
-
     /* This enables the DIVSCLK output pin on PQ4 and generates a 1.2 Mhz clock
      * signal on the bus if any board needs a clock signal for some reason.
      */
@@ -858,6 +844,21 @@ uint32_t RTD_ReadAllCards(void)
 Void MainTaskFxn(UArg arg0, UArg arg1)
 {
     size_t i;
+
+    /* Enable the LED's during startup up */
+    GPIO_write(Board_LED_ACT, Board_LED_ON);
+    GPIO_write(Board_LED_ALM, Board_LED_OFF);
+
+    /* Power up any slot cards listening */
+    Task_sleep(100);
+    GPIO_write(Board_PWRUP_BUS_OUT, PIN_HIGH);
+    Task_sleep(100);
+
+    /* Pulse reset line to any cards listening */
+    GPIO_write(Board_RESET_BUS_OUT, PIN_LOW);
+    Task_sleep(10);
+    GPIO_write(Board_RESET_BUS_OUT, PIN_HIGH);
+    Task_sleep(100);
 
     /* Read any system configuration parameters from EPROM. If config
      * hasn't been initialized, then initialize it with defaults.
