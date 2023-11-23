@@ -212,17 +212,18 @@ bool MCP23S17_init(
 {
     int i;
     bool success = false;
+    MCP23S17_InitData* p = initData;
 
     for (i=0; i < initDataCount; i++)
     {
         /* Send the register config byte */
-        success = MCP23S17_write(handle, initData->addr, initData->data);
+        success = MCP23S17_write(handle, p->addr, p->data);
 
         if (!success)
             break;
 
         /* Increment to next element in register config data table */
-        ++initData;
+        ++p;
     }
 
     /* Attempt to read back the I/O expander config to ensure the chip is there */

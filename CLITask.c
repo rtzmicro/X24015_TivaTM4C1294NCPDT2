@@ -311,7 +311,7 @@ void CLI_about(void)
 {
     CLI_printf("XMOD 24015 [Version %d.%02d.%03d]\n",
                FIRMWARE_VER, FIRMWARE_REV, FIRMWARE_BUILD);
-    CLI_puts("(C) 2021 RTZ Microsystems. All Rights Reserved.\n");
+    CLI_puts("(C) 2023 RTZ Microsystems. All Rights Reserved.\n");
 }
 
 int CLI_getc(void)
@@ -1025,10 +1025,10 @@ void xmodem_get_error(int err, char* buf, int bufsize)
 
 void cmd_stat(int argc, char *argv[])
 {
-    CLI_printf("SYSTEM STATUS\n");
+    CLI_printf("\nSYSTEM STATUS\n\n");
     CLI_printf("ADC Channels: %d\n", g_sys.adcNumChannels);
     CLI_printf("RTD Channels: %d\n", g_sys.rtdNumChannels);
-    CLI_printf("Last System Error: %d\n", GetLastError());
+    CLI_printf("System Error: %d\n", GetLastError());
     CLI_putc('\n');
 }
 

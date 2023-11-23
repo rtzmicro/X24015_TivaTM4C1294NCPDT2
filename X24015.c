@@ -539,6 +539,30 @@ uint32_t ADC_ReadChannel(uint32_t channel)
     return rc;
 }
 
+/* This callback function gets called for read/write operations to a
+ * RTD card and sets the chip select output from the MCP23S17 to the
+ * RTD devices. Only one chip select can be active at any given time and
+ * each RTD card has four MAX31865 RTD converters. Note the MCP23S17 is
+ * configured so the logic signals are inverted, thus setting an output
+ * register pin high drives the chip select low from the MCP23S17 i/o
+ * expander chip to assert the chip select.
+ */
+
+void MAX31865_ChipSelect_Proc(bool assert, void* param1, void* param2)
+{
+    RTD_CARD *card = (RTD_CARD*)param1;
+
+    RTD_CHANNEL *channel = (RTD_CHANNEL*)param2;
+
+    uint8_t mask = 0xFF;
+
+    if (assert)
+        mask ^= channel->csMaskIOX;
+
+    /* Write to port-a on the i/o expander */
+    MCP23S17_write(card->handleIOX, MCP_GPIOA, mask);
+}
+
 //*****************************************************************************
 // This function allocates all the RTD context objects for communication
 // and initializes the RTD converters for use.
@@ -596,7 +620,7 @@ uint32_t RTD_AllocCards(void)
          * Create and initialize four RTD channel objects for this card
          */
 
-        System_printf("RTD Card Found - slot=%u\n", n);
+        System_printf("RTD Card %u Found\n", n);
         System_flush();
 
         uint8_t swbit = 1;
@@ -660,30 +684,6 @@ uint32_t RTD_AllocCards(void)
     }
 
     return channels;
-}
-
-/* This function gets called for register read/write operations to a
- * RTD card and sets the chip select output from the MCP23S17 to the
- * RTD devices. Only one chip select can be active at any given time and
- * each RTD card has four MAX31865 RTD converters. Note the MCP23S17 is
- * configured so the logic signals are inverted, thus setting an output
- * register pin high drives the chip select low from the MCP23S17 i/o
- * expander chip to assert the chip select.
- */
-
-void MAX31865_ChipSelect_Proc(bool assert, void* param1, void* param2)
-{
-    RTD_CARD *card = (RTD_CARD*)param1;
-
-    RTD_CHANNEL *channel = (RTD_CHANNEL*)param2;
-
-    uint8_t mask = 0xFF;
-
-    if (assert)
-        mask ^= channel->csMaskIOX;
-
-    /* Write to port-a on the i/o expander */
-    MCP23S17_write(card->handleIOX, MCP_GPIOA, mask);
 }
 
 //*****************************************************************************
